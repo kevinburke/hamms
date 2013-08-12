@@ -11,4 +11,4 @@ install: venv
 	. venv/bin/activate; pip install -r requirements.txt
 
 serve: 
-	. venv/bin/activate; python twisted_hamms.py
+	. venv/bin/activate; python hamms.py
