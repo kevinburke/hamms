@@ -37,3 +37,6 @@ Connect to the ports listed below to enact the various failure modes.
 - The server will drop 1 out of every 100 requests
 - The server sends back 1 MB worth of headers
 - The server sends back 10 MB worth of headers
+- The server sends a response after 5 seconds
+- The server sends a response after 30 seconds
+- The server sends a response after 2 minutes

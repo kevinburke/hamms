@@ -82,6 +82,10 @@ class FiveSecondByteResponseFactory(protocol.Factory):
 
 
 class ThirtySecondByteResponseServer(protocol.Protocol):
+
+    def _send_byte(self, byte):
+        self.transport.write(byte)
+
     def dataReceived(self, data):
         timer = 30
         for byte in empty_response:
