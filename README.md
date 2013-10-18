@@ -18,14 +18,21 @@ By default, Hamms uses ports 5500-5600. In the future this may be configurable
 
 Connect to the ports listed below to enact the various failure modes.
 
-**5500** - Nothing is listening on the port
-**5501** - The port accepts traffic but never sends back data
-**5502** - The port sends back an empty string immediately upon connection
-**5503** - The port sends back an empty string after the client sends data
-**5504** - The port sends back a malformed response ("foo bar") immediately upon connection
-**5505** - The port sends back a malformed response ("foo bar") after the client sends data
-**5506** - The client accepts the request, and sends back one byte every 5 seconds
-**5507** - The client accepts the request, and sends back one byte every 30 seconds
+- **5500** - Nothing is listening on the port
+
+- **5501** - The port accepts traffic but never sends back data
+
+- **5502** - The port sends back an empty string immediately upon connection
+
+- **5503** - The port sends back an empty string after the client sends data
+
+- **5504** - The port sends back a malformed response ("foo bar") immediately upon connection
+
+- **5505** - The port sends back a malformed response ("foo bar") after the client sends data
+
+- **5506** - The client accepts the request, and sends back one byte every 5 seconds
+
+- **5507** - The client accepts the request, and sends back one byte every 30 seconds
 
 #### Not implemented yet
 
