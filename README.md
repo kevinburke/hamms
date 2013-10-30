@@ -18,7 +18,11 @@ By default, Hamms uses ports 5500-5600. In the future this may be configurable
 
 Connect to the ports listed below to enact the various failure modes.
 
-- **5500** - Nothing is listening on the port
+- **5500** - Nothing is listening on the port. Note, your machine will send
+back a TCP reset (closing the connection) immediately. To simulate a connection
+failure that just hangs forever, connect to a bad host on a real server, for
+example `www.google.com:81`, or use a port in the `10.*` range, for example
+`10.255.255.1`.
 
 - **5501** - The port accepts traffic but never sends back data
 
