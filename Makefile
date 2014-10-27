@@ -5,7 +5,7 @@ venv:
 
 clean:
 	rm -rf venv
-	! find . -name '*.pyc' | xargs rm
+	find . -name '*.pyc' | xargs rm || true
 
 install: venv
 	. venv/bin/activate; pip install -r requirements.txt
