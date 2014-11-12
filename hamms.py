@@ -1,7 +1,12 @@
+import json
 import logging
 import time
 
+from flask import Flask, request, Response
+from httpbin.helpers import get_dict
 from twisted.internet import protocol, reactor
+from twisted.web.server import Site
+from twisted.web.wsgi import WSGIResource
 
 logging.basicConfig()
 logger = logging.getLogger("hamms")
@@ -106,5 +111,21 @@ reactor.listenTCP(5504, MalformedStringTerminateImmediatelyFactory())
 reactor.listenTCP(5505, MalformedStringTerminateOnReceiveFactory())
 reactor.listenTCP(5506, FiveSecondByteResponseFactory())
 reactor.listenTCP(5507, ThirtySecondByteResponseFactory())
+
+app = Flask(__name__)
+
+@app.route("/sleep/<float:n>")
+def hello(n):
+    time.sleep(n)
+    hdrs = get_dict('headers')
+    r = Response(response=json.dumps(hdrs), status=200,
+                 headers={'Content-Type': 'application/json'})
+    return r
+
+resource = WSGIResource(reactor, reactor.getThreadPool(), app)
+site = Site(resource)
+reactor.listenTCP(5508, site)
+
+print "Listening..."
 reactor.run()
 

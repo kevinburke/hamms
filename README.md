@@ -38,6 +38,9 @@ example `www.google.com:81`, or use a port in the `10.*` range, for example
 
 - **5507** - The client accepts the request, and sends back one byte every 30 seconds
 
+- **5508** - Send a request to `localhost:5508/sleep/&lt;float&gt;` to sleep
+for `float` number of seconds.
+
 #### Not implemented yet
 
 - The server sends a full HTTP response, then sends back more data
@@ -48,6 +51,3 @@ example `www.google.com:81`, or use a port in the `10.*` range, for example
 - The server will drop 1 out of every 100 requests
 - The server sends back 1 MB worth of headers
 - The server sends back 10 MB worth of headers
-- The server sends a response after 5 seconds
-- The server sends a response after 30 seconds
-- The server sends a response after 2 minutes
