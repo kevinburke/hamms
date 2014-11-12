@@ -3,7 +3,7 @@ import logging
 import time
 
 from flask import Flask, request, Response
-from httpbin.helpers import get_dict
+from httpbin.helpers import get_dict, status_code
 from twisted.internet import protocol, reactor
 from twisted.web.server import Site
 from twisted.web.wsgi import WSGIResource
@@ -112,19 +112,30 @@ reactor.listenTCP(5505, MalformedStringTerminateOnReceiveFactory())
 reactor.listenTCP(5506, FiveSecondByteResponseFactory())
 reactor.listenTCP(5507, ThirtySecondByteResponseFactory())
 
-app = Flask(__name__)
+sleep_app = Flask(__name__)
+status_app = Flask(__name__)
 
-@app.route("/sleep/<float:n>")
-def hello(n):
-    time.sleep(n)
+@sleep_app.route("/")
+def sleep():
+    n = request.values.get('sleep')
+    time.sleep(float(n))
     hdrs = get_dict('headers')
     r = Response(response=json.dumps(hdrs), status=200,
                  headers={'Content-Type': 'application/json'})
     return r
 
-resource = WSGIResource(reactor, reactor.getThreadPool(), app)
-site = Site(resource)
-reactor.listenTCP(5508, site)
+@status_app.route("/")
+def status():
+    n = request.values.get('status')
+    return status_code(int(n))
+
+sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
+sleep_site = Site(sleep_resource)
+reactor.listenTCP(5508, sleep_site)
+
+status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
+status_site = Site(status_resource)
+reactor.listenTCP(5509, status_site)
 
 print "Listening..."
 reactor.run()
