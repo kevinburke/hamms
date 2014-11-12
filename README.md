@@ -38,10 +38,10 @@ example `www.google.com:81`, or use a port in the `10.*` range, for example
 
 - **5507** - The client accepts the request, and sends back one byte every 30 seconds
 
-- **5508** - Send a request to `localhost:5508?sleep=&lt;float&gt;` to sleep
+- **5508** - Send a request to `localhost:5508?sleep=<float>` to sleep
 for `float` number of seconds.
 
-- **5509** - Send a request to `localhost:5509?status=&lt;int&gt;` to return
+- **5509** - Send a request to `localhost:5509?status=<int>` to return
   a response with HTTP status code `status`.
 
 #### Not implemented yet
