@@ -12,6 +12,20 @@ Hamms is designed to elicit failures in your HTTP Client.
 
 By default, Hamms uses ports 5500-5600. In the future this may be configurable
 
+You can also use the HammsServer class to start and stop the server on command.
+
+```python
+from hamms import HammsServer
+
+class MyTest(object):
+    def setUp(self):
+        self.hs = HammsServer()
+        self.hs.start()
+
+    def tearDown(self):
+        self.hs.stop()
+```
+
 ## Reference
 
 ### Connection level errors
@@ -54,3 +68,11 @@ for `float` number of seconds.
 - The server will drop 1 out of every 100 requests
 - The server sends back 1 MB worth of headers
 - The server sends back 10 MB worth of headers
+
+##### SSL
+
+- Handshake timeout
+- Invalid certificate
+- TLS v1.0 and higher only
+- TLS v1.2 and higher only
+- Server closes connection

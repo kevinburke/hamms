@@ -1,5 +1,6 @@
 import json
 import logging
+from threading import Thread
 import time
 
 from flask import Flask, request, Response
@@ -11,6 +12,24 @@ from twisted.web.wsgi import WSGIResource
 logging.basicConfig()
 logger = logging.getLogger("hamms")
 
+class HammsServer(object):
+    """ Start the hamms server in a thread.
+
+    Usage::
+
+        hs = HammsServer()
+        hs.start()
+        # When you are done working with hamms
+        hs.stop()
+    """
+
+    def start(self):
+        self.t = Thread(target=reactor.run, args=(False,))
+        self.t.daemon = True
+        self.t.start()
+
+    def stop(self):
+        reactor.stop()
 
 class ListenForeverServer(protocol.Protocol):
     pass
@@ -104,6 +123,17 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
         return ThirtySecondByteResponseServer()
 
 
+class SendDataAfterEOFServer(protocol.Protocol):
+    def connectionMade(self):
+        self.transport.write('foo bar')
+        self.transport.loseConnection()
+
+
+class MalformedStringTerminateImmediatelyFactory(protocol.Factory):
+    def buildProtocol(self, addr):
+        return MalformedStringTerminateImmediatelyServer()
+
+
 reactor.listenTCP(5501, ListenForeverFactory())
 reactor.listenTCP(5502, EmptyStringTerminateImmediatelyFactory())
 reactor.listenTCP(5503, EmptyStringTerminateOnReceiveFactory())
@@ -137,6 +167,6 @@ status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
 status_site = Site(status_resource)
 reactor.listenTCP(5509, status_site)
 
-print "Listening..."
-reactor.run()
-
+logger.info("Listening...")
+if __name__ == "__main__":
+    reactor.run()
