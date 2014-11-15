@@ -58,9 +58,11 @@ for `float` number of seconds.
 - **5509** - Send a request to `localhost:5509?status=<int>` to return
   a response with HTTP status code `status`.
 
+- **5510** - The server advertises a Content-Length of 3, but sends back 100
+  bytes of body data.
+
 #### Not implemented yet
 
-- The server sends a full HTTP response, then sends back more data
 - The server sends back a response without a content-type
 - The server sends back a response with the wrong content-type
 - The server randomly drops bytes from a valid response.

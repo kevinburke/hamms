@@ -123,24 +123,27 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
         return ThirtySecondByteResponseServer()
 
 
-class SendDataAfterEOFServer(protocol.Protocol):
+class SendDataPastContentLengthServer(protocol.Protocol):
     def connectionMade(self):
-        self.transport.write('foo bar')
+        self.transport.write('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n'
+                             'Content-Length: 3\r\n\r\n' + 'a'*100)
         self.transport.loseConnection()
 
-
-class MalformedStringTerminateImmediatelyFactory(protocol.Factory):
+class SendDataPastContentLengthFactory(protocol.Factory):
     def buildProtocol(self, addr):
-        return MalformedStringTerminateImmediatelyServer()
+        return SendDataPastContentLengthServer()
 
 
-reactor.listenTCP(5501, ListenForeverFactory())
-reactor.listenTCP(5502, EmptyStringTerminateImmediatelyFactory())
-reactor.listenTCP(5503, EmptyStringTerminateOnReceiveFactory())
-reactor.listenTCP(5504, MalformedStringTerminateImmediatelyFactory())
-reactor.listenTCP(5505, MalformedStringTerminateOnReceiveFactory())
-reactor.listenTCP(5506, FiveSecondByteResponseFactory())
-reactor.listenTCP(5507, ThirtySecondByteResponseFactory())
+BASE_PORT = 5500
+
+reactor.listenTCP(BASE_PORT+1, ListenForeverFactory())
+reactor.listenTCP(BASE_PORT+2, EmptyStringTerminateImmediatelyFactory())
+reactor.listenTCP(BASE_PORT+3, EmptyStringTerminateOnReceiveFactory())
+reactor.listenTCP(BASE_PORT+4, MalformedStringTerminateImmediatelyFactory())
+reactor.listenTCP(BASE_PORT+5, MalformedStringTerminateOnReceiveFactory())
+reactor.listenTCP(BASE_PORT+6, FiveSecondByteResponseFactory())
+reactor.listenTCP(BASE_PORT+7, ThirtySecondByteResponseFactory())
+reactor.listenTCP(BASE_PORT+10, SendDataPastContentLengthFactory())
 
 sleep_app = Flask(__name__)
 status_app = Flask(__name__)
@@ -150,9 +153,8 @@ def sleep():
     n = request.values.get('sleep')
     time.sleep(float(n))
     hdrs = get_dict('headers')
-    r = Response(response=json.dumps(hdrs), status=200,
-                 headers={'Content-Type': 'application/json'})
-    return r
+    return Response(response=json.dumps(hdrs), status=200,
+                    headers={'Content-Type': 'application/json'})
 
 @status_app.route("/")
 def status():
@@ -161,11 +163,11 @@ def status():
 
 sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
 sleep_site = Site(sleep_resource)
-reactor.listenTCP(5508, sleep_site)
+reactor.listenTCP(BASE_PORT+8, sleep_site)
 
 status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
 status_site = Site(status_resource)
-reactor.listenTCP(5509, status_site)
+reactor.listenTCP(BASE_PORT+9, status_site)
 
 logger.info("Listening...")
 if __name__ == "__main__":

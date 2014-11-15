@@ -1,5 +1,6 @@
 """
-Example of how to run the Hamms Server from working code.
+Example of how to run the Hamms Server from running Python code instead of the
+command line.
 """
 from threading import Thread
 import time
