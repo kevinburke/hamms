@@ -13,6 +13,7 @@ from twisted.web.wsgi import WSGIResource
 
 logging.basicConfig()
 logger = logging.getLogger("hamms")
+logger.setLevel(logging.INFO)
 
 class HammsServer(object):
     """ Start the hamms server in a thread.
@@ -128,7 +129,7 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
 class SendDataPastContentLengthServer(protocol.Protocol):
     def connectionMade(self):
         self.transport.write('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n'
-                             'Content-Length: 3\r\n\r\n' + 'a'*100)
+                             'Content-Length: 3\r\n\r\n' + 'a'*1024*1024)
         self.transport.loseConnection()
 
 class SendDataPastContentLengthFactory(protocol.Factory):
@@ -214,6 +215,6 @@ reactor.listenTCP(BASE_PORT+11, large_header_site)
 reactor.listenTCP(BASE_PORT+12, SendDataPastContentLengthFactory())
 reactor.listenTCP(BASE_PORT+13, DropRandomRequestsFactory())
 
-logger.warn("Listening...")
+logger.info("Listening...")
 if __name__ == "__main__":
     reactor.run()
