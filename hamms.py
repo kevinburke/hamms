@@ -1,7 +1,9 @@
 import json
 import logging
+import random
 from threading import Thread
 import time
+import urlparse
 
 from flask import Flask, request, Response
 from httpbin.helpers import get_dict, status_code
@@ -133,6 +135,68 @@ class SendDataPastContentLengthFactory(protocol.Factory):
     def buildProtocol(self, addr):
         return SendDataPastContentLengthServer()
 
+def success_response(content_type, response):
+    return ('HTTP/1.1 200 OK\r\n'
+            'Content-Type: {ctype}\r\n\r\n'
+            '{response}'.format(ctype=content_type, response=response))
+
+class DropRandomRequestsServer(protocol.Protocol):
+    def dataReceived(self, data):
+        body = data.split('\r\n')
+        method, url, http_vsn = body[0].split(' ')
+        o = urlparse.urlparse(url)
+        query = urlparse.parse_qs(o.query)
+        if 'failrate' in query:
+            failrate = query['failrate'].pop()
+        else:
+            failrate = 0.05
+        if random.random() >= failrate:
+            self.transport.write(
+                success_response('application/json', '{"success": true}'))
+        self.transport.loseConnection()
+
+class DropRandomRequestsFactory(protocol.Factory):
+    def buildProtocol(self, addr):
+        return DropRandomRequestsServer()
+
+
+sleep_app = Flask(__name__)
+status_app = Flask(__name__)
+large_header_app = Flask(__name__)
+
+@sleep_app.route("/")
+def sleep():
+    n = request.values.get('sleep', 5)
+    time.sleep(float(n))
+    hdrs = get_dict('headers')
+    return Response(response=json.dumps(hdrs), status=200,
+                    headers={'Content-Type': 'application/json'})
+
+@status_app.route("/")
+def status():
+    n = request.values.get('status', 200)
+    return status_code(int(n))
+
+@large_header_app.route("/")
+def large_header():
+    n = request.values.get('size', 63*1024)
+    req_headers = get_dict('headers')
+    resp_headers = {
+        'Content-Type': 'application/json',
+        'Cookie': 'a'*int(n)
+    }
+    return Response(response=json.dumps(req_headers), status=200,
+                    headers=resp_headers)
+
+sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
+sleep_site = Site(sleep_resource)
+
+status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
+status_site = Site(status_resource)
+
+large_header_resource = WSGIResource(reactor, reactor.getThreadPool(),
+                                     large_header_app)
+large_header_site = Site(large_header_resource)
 
 BASE_PORT = 5500
 
@@ -143,32 +207,13 @@ reactor.listenTCP(BASE_PORT+4, MalformedStringTerminateImmediatelyFactory())
 reactor.listenTCP(BASE_PORT+5, MalformedStringTerminateOnReceiveFactory())
 reactor.listenTCP(BASE_PORT+6, FiveSecondByteResponseFactory())
 reactor.listenTCP(BASE_PORT+7, ThirtySecondByteResponseFactory())
-reactor.listenTCP(BASE_PORT+10, SendDataPastContentLengthFactory())
-
-sleep_app = Flask(__name__)
-status_app = Flask(__name__)
-
-@sleep_app.route("/")
-def sleep():
-    n = request.values.get('sleep')
-    time.sleep(float(n))
-    hdrs = get_dict('headers')
-    return Response(response=json.dumps(hdrs), status=200,
-                    headers={'Content-Type': 'application/json'})
-
-@status_app.route("/")
-def status():
-    n = request.values.get('status')
-    return status_code(int(n))
-
-sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
-sleep_site = Site(sleep_resource)
 reactor.listenTCP(BASE_PORT+8, sleep_site)
-
-status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
-status_site = Site(status_resource)
 reactor.listenTCP(BASE_PORT+9, status_site)
+reactor.listenTCP(BASE_PORT+10, SendDataPastContentLengthFactory())
+reactor.listenTCP(BASE_PORT+11, large_header_site)
+reactor.listenTCP(BASE_PORT+12, SendDataPastContentLengthFactory())
+reactor.listenTCP(BASE_PORT+13, DropRandomRequestsFactory())
 
-logger.info("Listening...")
+logger.warn("Listening...")
 if __name__ == "__main__":
     reactor.run()

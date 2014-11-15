@@ -53,13 +53,17 @@ example `www.google.com:81`, or use a port in the `10.*` range, for example
 - **5507** - The client accepts the request, and sends back one byte every 30 seconds
 
 - **5508** - Send a request to `localhost:5508?sleep=<float>` to sleep
-for `float` number of seconds.
+for `float` number of seconds. If no value is provided, sleep for 5 seconds.
 
 - **5509** - Send a request to `localhost:5509?status=<int>` to return
-  a response with HTTP status code `status`.
+  a response with HTTP status code `status`. If no value is provided, return
+  status code 200.
 
 - **5510** - The server advertises a Content-Length of 3, but sends back 100
   bytes of body data.
+
+- **5511** - Send a request to `localhost:5511?size=<int>` to return a `Cookie`
+  header that is `n` bytes long. By default, return a 63KB header.
 
 #### Not implemented yet
 
@@ -68,8 +72,7 @@ for `float` number of seconds.
 - The server randomly drops bytes from a valid response.
 - The server will drop 1 out of every 10 requests
 - The server will drop 1 out of every 100 requests
-- The server sends back 1 MB worth of headers
-- The server sends back 10 MB worth of headers
+- Log incoming requests
 
 ##### SSL
 
