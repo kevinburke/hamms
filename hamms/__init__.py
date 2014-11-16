@@ -36,13 +36,19 @@ class HammsServer(object):
     def stop(self):
         reactor.stop()
 
-def _log(transport, port, data):
+def _ip(transport):
     try:
         peer = transport.getPeer()
+        return peer.host
+    except Exception:
+        return "<ipaddr>"
+
+def _log(ipaddr, port, data):
+    try:
         # XXX find user agent
         topline = data.split('\r\n')[0]
         return "{ipaddr} {port} \"{topline}\"".format(
-            ipaddr=peer.host, port=port, topline=topline)
+            ipaddr=ipaddr, port=port, topline=topline)
     except Exception:
         logger.exception("caught exception while formatting log")
         return "<data received>"
@@ -52,7 +58,7 @@ class ListenForeverServer(protocol.Protocol):
     PORT = BASE_PORT+1
 
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
 
 
 class ListenForeverFactory(protocol.Factory):
@@ -64,7 +70,7 @@ class EmptyStringTerminateImmediatelyServer(protocol.Protocol):
     PORT = BASE_PORT+2
 
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
 
     def connectionMade(self):
         self.transport.write('')
@@ -81,7 +87,7 @@ class EmptyStringTerminateOnReceiveServer(protocol.Protocol):
     PORT = BASE_PORT+3
 
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
         self.transport.write('')
         self.transport.loseConnection()
 
@@ -96,7 +102,7 @@ class MalformedStringTerminateImmediatelyServer(protocol.Protocol):
     PORT = BASE_PORT + 4
 
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
 
     def connectionMade(self):
         self.transport.write('foo bar')
@@ -109,8 +115,11 @@ class MalformedStringTerminateImmediatelyFactory(protocol.Factory):
 
 
 class MalformedStringTerminateOnReceiveServer(protocol.Protocol):
+
+    PORT = BASE_PORT+5
+
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
         self.transport.write('foo bar')
         self.transport.loseConnection()
 
@@ -126,11 +135,13 @@ empty_response = 'HTTP/1.1 204 No Content\r\n\r\n'
 # XXX combine these two servers.
 class FiveSecondByteResponseServer(protocol.Protocol):
 
+    PORT = BASE_PORT + 6
+
     def _send_byte(self, byte):
         self.transport.write(byte)
 
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
         timer = 5
         for byte in empty_response:
             reactor.callLater(timer, self._send_byte, byte)
@@ -145,11 +156,13 @@ class FiveSecondByteResponseFactory(protocol.Factory):
 
 class ThirtySecondByteResponseServer(protocol.Protocol):
 
+    PORT = BASE_PORT + 7
+
     def _send_byte(self, byte):
         self.transport.write(byte)
 
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
         timer = 30
         for byte in empty_response:
             reactor.callLater(timer, self._send_byte, byte)
@@ -164,7 +177,7 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
 
 class SendDataPastContentLengthServer(protocol.Protocol):
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
     def connectionMade(self):
         self.transport.write('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n'
                              'Content-Length: 3\r\n\r\n' + 'a'*1024*1024)
@@ -181,7 +194,7 @@ def success_response(content_type, response):
 
 class DropRandomRequestsServer(protocol.Protocol):
     def dataReceived(self, data):
-        logger.info(_log(self.transport, self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data))
         body = data.split('\r\n')
         method, url, http_vsn = body[0].split(' ')
         o = urlparse.urlparse(url)
@@ -201,8 +214,15 @@ class DropRandomRequestsFactory(protocol.Factory):
 
 
 sleep_app = Flask(__name__)
+sleep_app.PORT = BASE_PORT + 8
 status_app = Flask(__name__)
 large_header_app = Flask(__name__)
+
+@sleep_app.before_request
+def log_sleep():
+    logger.info(
+        _log(request.remote_addr, sleep_app.PORT, "{method} {url} HTTP/1.1".format(
+        method=request.method.upper(), url=request.full_path)))
 
 @sleep_app.route("/")
 def sleep():
@@ -246,9 +266,12 @@ reactor.listenTCP(EmptyStringTerminateOnReceiveServer.PORT,
                   EmptyStringTerminateOnReceiveFactory())
 reactor.listenTCP(MalformedStringTerminateImmediatelyServer.PORT,
                   MalformedStringTerminateImmediatelyFactory())
-reactor.listenTCP(BASE_PORT+5, MalformedStringTerminateOnReceiveFactory())
-reactor.listenTCP(BASE_PORT+6, FiveSecondByteResponseFactory())
-reactor.listenTCP(BASE_PORT+7, ThirtySecondByteResponseFactory())
+reactor.listenTCP(MalformedStringTerminateOnReceiveServer.PORT,
+                  MalformedStringTerminateOnReceiveFactory())
+reactor.listenTCP(FiveSecondByteResponseServer.PORT,
+                  FiveSecondByteResponseFactory())
+reactor.listenTCP(ThirtySecondByteResponseServer.PORT,
+                  ThirtySecondByteResponseFactory())
 reactor.listenTCP(BASE_PORT+8, sleep_site)
 reactor.listenTCP(BASE_PORT+9, status_site)
 reactor.listenTCP(BASE_PORT+10, SendDataPastContentLengthFactory())
