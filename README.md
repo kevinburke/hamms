@@ -93,9 +93,7 @@ back a 500 server error. Retrieve the count by making a GET request to
 - The server sends back a response without a content-type
 - The server sends back a response with the wrong content-type
 - The server randomly drops bytes from a valid response.
-- The server will drop 1 out of every 10 requests
-- The server will drop 1 out of every 100 requests
-- Log incoming requests
+- Sending back byte data
 
 ##### SSL
 
