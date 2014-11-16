@@ -256,6 +256,6 @@ reactor.listenTCP(BASE_PORT+11, large_header_site)
 reactor.listenTCP(BASE_PORT+12, SendDataPastContentLengthFactory())
 reactor.listenTCP(BASE_PORT+13, DropRandomRequestsFactory())
 
-logger.info("Listening...")
 if __name__ == "__main__":
+    logger.info("Listening...")
     reactor.run()
