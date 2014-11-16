@@ -5,7 +5,7 @@ from threading import Thread
 import time
 import urlparse
 
-from flask import Flask, request, Response
+from flask import Flask, request, Response, g
 from httpbin.helpers import get_dict, status_code
 from twisted.internet import protocol, reactor
 from twisted.web.server import Site
@@ -182,6 +182,9 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
 
 
 class SendDataPastContentLengthServer(protocol.Protocol):
+
+    PORT = BASE_PORT + 10
+
     def dataReceived(self, data):
         logger.info(_log(_ip(self.transport), self.PORT, data, status=200))
 
@@ -200,6 +203,9 @@ def success_response(content_type, response):
             '{response}'.format(ctype=content_type, response=response))
 
 class DropRandomRequestsServer(protocol.Protocol):
+
+    PORT = BASE_PORT + 13
+
     def dataReceived(self, data):
         body = data.split('\r\n')
         method, url, http_vsn = body[0].split(' ')
@@ -228,26 +234,8 @@ status_app = Flask(__name__)
 status_app.PORT = BASE_PORT + 9
 large_header_app = Flask(__name__)
 large_header_app.PORT = BASE_PORT + 11
-
-def _log_flask(port, status):
-    logger.info(
-        _log(request.remote_addr, port, "{method} {url} HTTP/1.1".format(
-        method=request.method.upper(), url=request.full_path), status=status))
-
-@sleep_app.after_request
-def log_sleep(resp):
-    _log_flask(sleep_app.PORT, resp.status_code)
-    return resp
-
-@status_app.after_request
-def log_status(resp):
-    _log_flask(status_app.PORT, resp.status_code)
-    return resp
-
-@large_header_app.after_request
-def log_large_header(resp):
-    _log_flask(large_header_app.PORT, resp.status_code)
-    return resp
+retries_app = Flask(__name__)
+retries_app.PORT = BASE_PORT + 12
 
 @sleep_app.route("/")
 def sleep():
@@ -273,6 +261,78 @@ def large_header():
     return Response(response=json.dumps(req_headers), status=200,
                     headers=resp_headers)
 
+
+COUNTER = 0
+
+@retries_app.route("/")
+def serve_error_based_on_counter():
+    global COUNTER
+    COUNTER += 1
+    if COUNTER % 3 == 0:
+        req_headers = get_dict('headers')
+        return Response(response=json.dumps(req_headers), status=200,
+                        headers={'Content-Type': 'application/json'})
+    else:
+        retry_times = 3 - COUNTER % 3
+        msg = 'The server had an error. Try again {retry_times} more {time_p}'
+        time_p = 'time' if retry_times == 1 else 'times'
+        content = {
+            'error':msg.format(retry_times=retry_times, time_p=time_p),
+            'status': 500,
+        }
+        return Response(response=json.dumps(content), status=500,
+                        headers={'Content-Type': 'application/json'})
+
+@retries_app.route("/counter", methods=['POST'])
+def reset():
+    global COUNTER
+    COUNTER = 0
+    content = {
+        'counter': COUNTER,
+        'status': 200
+    }
+    return Response(response=json.dumps(content), status=200,
+                    headers={'Content-Type': 'application/json'})
+
+@retries_app.route("/counter", methods=['GET'])
+def counter():
+    global COUNTER
+    content = {
+        'counter': COUNTER,
+        'status': 200
+    }
+    return Response(response=json.dumps(content), status=200,
+                    headers={'Content-Type': 'application/json'})
+
+def _log_flask(port, status):
+    logger.info(
+        _log(request.remote_addr, port, "{method} {url} HTTP/1.1".format(
+        method=request.method.upper(), url=request.full_path), status=status))
+
+@sleep_app.after_request
+def log_sleep(resp):
+    _log_flask(sleep_app.PORT, resp.status_code)
+    resp.headers['Server'] = 'hamms'
+    return resp
+
+@status_app.after_request
+def log_status(resp):
+    _log_flask(status_app.PORT, resp.status_code)
+    resp.headers['Server'] = 'hamms'
+    return resp
+
+@large_header_app.after_request
+def log_large_header(resp):
+    _log_flask(large_header_app.PORT, resp.status_code)
+    resp.headers['Server'] = 'hamms'
+    return resp
+
+@retries_app.after_request
+def retries_header(resp):
+    _log_flask(retries_app.PORT, resp.status_code)
+    resp.headers['Server'] = 'hamms'
+    return resp
+
 sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
 sleep_site = Site(sleep_resource)
 
@@ -282,6 +342,9 @@ status_site = Site(status_resource)
 large_header_resource = WSGIResource(reactor, reactor.getThreadPool(),
                                      large_header_app)
 large_header_site = Site(large_header_resource)
+
+retries_resource = WSGIResource(reactor, reactor.getThreadPool(), retries_app)
+retries_site = Site(retries_resource)
 
 
 reactor.listenTCP(ListenForeverServer.PORT, ListenForeverFactory())
@@ -299,10 +362,11 @@ reactor.listenTCP(ThirtySecondByteResponseServer.PORT,
                   ThirtySecondByteResponseFactory())
 reactor.listenTCP(sleep_app.PORT, sleep_site)
 reactor.listenTCP(status_app.PORT, status_site)
-reactor.listenTCP(BASE_PORT+10, SendDataPastContentLengthFactory())
+reactor.listenTCP(SendDataPastContentLengthServer.PORT,
+                  SendDataPastContentLengthFactory())
 reactor.listenTCP(large_header_app.PORT, large_header_site)
-reactor.listenTCP(BASE_PORT+12, SendDataPastContentLengthFactory())
-reactor.listenTCP(BASE_PORT+13, DropRandomRequestsFactory())
+reactor.listenTCP(retries_app.PORT, retries_site)
+reactor.listenTCP(DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
 
 if __name__ == "__main__":
     logger.info("Listening...")

@@ -73,14 +73,17 @@ for `float` number of seconds. If no value is provided, sleep for 5 seconds.
   a response with HTTP status code `status`. If no value is provided, return
   status code 200.
 
-- **5510** - The server advertises a Content-Length of 3, but sends back 100
-  bytes of body data.
+- **5510** - The server will send a response with a `Content-Length: 3` header,
+  however the response is actually 1 MB in size
 
 - **5511** - Send a request to `localhost:5511?size=<int>` to return a `Cookie`
   header that is `n` bytes long. By default, return a 63KB header.
 
-- **5512** - The server will send a response with a `Content-Length: 3` header,
-  however the response is actually 1 MB in size
+- **5512** - The server keeps a counter of incoming requests. Every third
+request (3, 6, 9, 12 etc) gets a 200 response; otherwise the server sends
+back a 500 server error. Retrieve the count by making a GET request to
+`localhost:5512/counter`. Reset the count by making a POST request to
+`localhost:5512/counter`.
 
 - **5513** - Send a request to `localhost:5513?failrate=<float>`. The server
   will drop requests with a frequency of `failrate`.
