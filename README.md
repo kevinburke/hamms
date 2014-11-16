@@ -75,16 +75,21 @@ for `float` number of seconds. If no value is provided, sleep for 5 seconds.
   status code 200.
 
 - **5510** - The server will send a response with a `Content-Length: 3` header,
-  however the response is actually 1 MB in size
+  however the response is actually 1 MB in size. This can break clients that
+  reuse a socket.
 
 - **5511** - Send a request to `localhost:5511?size=<int>` to return a `Cookie`
-  header that is `n` bytes long. By default, return a 63KB header.
+  header that is `n` bytes long. By default, return a 63KB header. 1KB larger
+  will break many popular clients (curl, requests, for example)
 
 - **5512** - The server keeps a counter of incoming requests. Every third
 request (3, 6, 9, 12 etc) gets a 200 response; otherwise the server sends
 back a 500 server error. Retrieve the count by making a GET request to
 `localhost:5512/counter`. Reset the count by making a POST request to
 `localhost:5512/counter`.
+
+    Use this port to test retry logic in your client - to ensure that it
+    retries on failure.
 
 - **5513** - Send a request to `localhost:5513?failrate=<float>`. The server
   will drop requests with a frequency of `failrate`.

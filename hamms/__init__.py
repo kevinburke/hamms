@@ -10,6 +10,7 @@ from httpbin.helpers import get_dict, status_code
 from twisted.internet import protocol, reactor
 from twisted.web.server import Site
 from twisted.web.wsgi import WSGIResource
+from werkzeug.routing import Rule
 
 logging.basicConfig()
 logger = logging.getLogger("hamms")
@@ -264,7 +265,9 @@ def large_header():
 
 COUNTER = 0
 
-@retries_app.route("/")
+# we want the retries app to listen on all methods
+retries_app.url_map.add(Rule('/', endpoint='index'))
+@retries_app.endpoint("index")
 def serve_error_based_on_counter():
     global COUNTER
     COUNTER += 1
