@@ -43,12 +43,12 @@ def _ip(transport):
     except Exception:
         return "<ipaddr>"
 
-def _log(ipaddr, port, data):
+def _log(ipaddr, port, data, status=None):
     try:
         # XXX find user agent
         topline = data.split('\r\n')[0]
-        return "{ipaddr} {port} \"{topline}\"".format(
-            ipaddr=ipaddr, port=port, topline=topline)
+        return "{ipaddr} {port} \"{topline}\" {status}".format(
+            ipaddr=ipaddr, port=port, topline=topline, status=status or "-")
     except Exception:
         logger.exception("caught exception while formatting log")
         return "<data received>"
@@ -141,12 +141,15 @@ class FiveSecondByteResponseServer(protocol.Protocol):
         self.transport.write(byte)
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
-        timer = 5
-        for byte in empty_response:
-            reactor.callLater(timer, self._send_byte, byte)
-            timer += 5
-        reactor.callLater(timer, self.transport.loseConnection)
+        try:
+            timer = 5
+            for byte in empty_response:
+                reactor.callLater(timer, self._send_byte, byte)
+                timer += 5
+            reactor.callLater(timer, self.transport.loseConnection)
+            logger.info(_log(_ip(self.transport), self.PORT, data, status=204))
+        except Exception:
+            logger.info(_log(_ip(self.transport), self.PORT, data))
 
 
 class FiveSecondByteResponseFactory(protocol.Factory):
@@ -162,12 +165,15 @@ class ThirtySecondByteResponseServer(protocol.Protocol):
         self.transport.write(byte)
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
-        timer = 30
-        for byte in empty_response:
-            reactor.callLater(timer, self._send_byte, byte)
-            timer += 30
-        reactor.callLater(timer, self.transport.loseConnection)
+        try:
+            timer = 30
+            for byte in empty_response:
+                reactor.callLater(timer, self._send_byte, byte)
+                timer += 30
+            reactor.callLater(timer, self.transport.loseConnection)
+            logger.info(_log(_ip(self.transport), self.PORT, data, status=204))
+        except Exception:
+            logger.info(_log(_ip(self.transport), self.PORT, data))
 
 
 class ThirtySecondByteResponseFactory(protocol.Factory):
@@ -177,7 +183,8 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
 
 class SendDataPastContentLengthServer(protocol.Protocol):
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
+        logger.info(_log(_ip(self.transport), self.PORT, data, status=200))
+
     def connectionMade(self):
         self.transport.write('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n'
                              'Content-Length: 3\r\n\r\n' + 'a'*1024*1024)
@@ -194,7 +201,6 @@ def success_response(content_type, response):
 
 class DropRandomRequestsServer(protocol.Protocol):
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
         body = data.split('\r\n')
         method, url, http_vsn = body[0].split(' ')
         o = urlparse.urlparse(url)
@@ -204,8 +210,11 @@ class DropRandomRequestsServer(protocol.Protocol):
         else:
             failrate = 0.05
         if random.random() >= failrate:
+            logger.info(_log(_ip(self.transport), self.PORT, data, status=200))
             self.transport.write(
                 success_response('application/json', '{"success": true}'))
+        else:
+            logger.info(_log(_ip(self.transport), self.PORT, data))
         self.transport.loseConnection()
 
 class DropRandomRequestsFactory(protocol.Factory):
@@ -216,13 +225,29 @@ class DropRandomRequestsFactory(protocol.Factory):
 sleep_app = Flask(__name__)
 sleep_app.PORT = BASE_PORT + 8
 status_app = Flask(__name__)
+status_app.PORT = BASE_PORT + 9
 large_header_app = Flask(__name__)
+large_header_app.PORT = BASE_PORT + 11
 
-@sleep_app.before_request
-def log_sleep():
+def _log_flask(port, status):
     logger.info(
-        _log(request.remote_addr, sleep_app.PORT, "{method} {url} HTTP/1.1".format(
-        method=request.method.upper(), url=request.full_path)))
+        _log(request.remote_addr, port, "{method} {url} HTTP/1.1".format(
+        method=request.method.upper(), url=request.full_path), status=status))
+
+@sleep_app.after_request
+def log_sleep(resp):
+    _log_flask(sleep_app.PORT, resp.status_code)
+    return resp
+
+@status_app.after_request
+def log_status(resp):
+    _log_flask(status_app.PORT, resp.status_code)
+    return resp
+
+@large_header_app.after_request
+def log_large_header(resp):
+    _log_flask(large_header_app.PORT, resp.status_code)
+    return resp
 
 @sleep_app.route("/")
 def sleep():
@@ -272,10 +297,10 @@ reactor.listenTCP(FiveSecondByteResponseServer.PORT,
                   FiveSecondByteResponseFactory())
 reactor.listenTCP(ThirtySecondByteResponseServer.PORT,
                   ThirtySecondByteResponseFactory())
-reactor.listenTCP(BASE_PORT+8, sleep_site)
-reactor.listenTCP(BASE_PORT+9, status_site)
+reactor.listenTCP(sleep_app.PORT, sleep_site)
+reactor.listenTCP(status_app.PORT, status_site)
 reactor.listenTCP(BASE_PORT+10, SendDataPastContentLengthFactory())
-reactor.listenTCP(BASE_PORT+11, large_header_site)
+reactor.listenTCP(large_header_app.PORT, large_header_site)
 reactor.listenTCP(BASE_PORT+12, SendDataPastContentLengthFactory())
 reactor.listenTCP(BASE_PORT+13, DropRandomRequestsFactory())
 

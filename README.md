@@ -2,17 +2,23 @@
 
 Hamms is designed to elicit failures in your HTTP Client.
 
+## Installation
+
+You can either install hamms via pip:
+
+    pip install hamms
+
+Or clone this project:
+
+    git clone https://github.com/kevinburke/hamms.git
+
 ## Usage
 
-1. Start hamms
+1. Start hamms by running it from the command line:
 
-    python hamms.py
+    python hamms/__init__.py
 
-2. Make requests and test your client
-
-By default, Hamms uses ports 5500-5600. In the future this may be configurable
-
-You can also use the HammsServer class to start and stop the server on command.
+Or use the HammsServer class to start and stop the server on command.
 
 ```python
 from hamms import HammsServer
@@ -26,17 +32,25 @@ class MyTest(object):
         self.hs.stop()
 ```
 
+2. Make requests and test your client. See the reference below for a list of
+   supported failure modes.
+
+By default, Hamms uses ports 5500-5600. In the future, this port range may be
+configurable.
+
 ## Reference
 
 ### Connection level errors
 
 Connect to the ports listed below to enact the various failure modes.
 
-- **5500** - Nothing is listening on the port. Note, your machine will send
-back a TCP reset (closing the connection) immediately. To simulate a connection
-failure that just hangs forever, connect to a bad host on a real server, for
-example `www.google.com:81`, or use a port in the `10.*` range, for example
-`10.255.255.1`.
+- **5500** - Nothing is listening on the port. Note, your machine will likely
+send back a TCP reset (closing the connection) immediately.
+
+    To simulate a connection failure that just hangs forever (a connection
+    timeout), connect to a bad host on a real server, for example
+    `www.google.com:81`, or use a port in the `10.*` range, for example
+    `10.255.255.1`.
 
 - **5501** - The port accepts traffic but never sends back data
 
