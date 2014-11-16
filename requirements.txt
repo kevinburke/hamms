@@ -1,4 +1,3 @@
-gevent
 twisted
 flask
 httpbin
