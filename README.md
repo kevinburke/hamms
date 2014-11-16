@@ -16,21 +16,21 @@ Or clone this project:
 
 1. Start hamms by running it from the command line:
 
-    python hamms/__init__.py
+        python hamms/__init__.py
 
-Or use the HammsServer class to start and stop the server on command.
+    Or use the HammsServer class to start and stop the server on command.
 
-```python
-from hamms import HammsServer
+    ```python
+    from hamms import HammsServer
 
-class MyTest(object):
-    def setUp(self):
-        self.hs = HammsServer()
-        self.hs.start()
+    class MyTest(object):
+        def setUp(self):
+            self.hs = HammsServer()
+            self.hs.start()
 
-    def tearDown(self):
-        self.hs.stop()
-```
+        def tearDown(self):
+            self.hs.stop()
+    ```
 
 2. Make requests and test your client. See the reference below for a list of
    supported failure modes.
