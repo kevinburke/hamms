@@ -1,6 +1,7 @@
 # Hamms
 
-Hamms is designed to elicit failures in your HTTP Client.
+Hamms is designed to elicit failures in your HTTP Client. Connection failures,
+malformed response data, slow servers, fat headers, and more!
 
 ## Installation
 
