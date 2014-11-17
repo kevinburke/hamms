@@ -17,6 +17,7 @@ logger.setLevel(logging.INFO)
 
 BASE_PORT = 5500
 
+
 class HammsServer(object):
     """ Start the hamms server in a thread.
 
@@ -55,7 +56,7 @@ def _log(ipaddr, port, data, status=None):
 
 class ListenForeverServer(protocol.Protocol):
 
-    PORT = BASE_PORT+1
+    PORT = 1
 
     def dataReceived(self, data):
         logger.info(_log(_ip(self.transport), self.PORT, data))
@@ -67,7 +68,7 @@ class ListenForeverFactory(protocol.Factory):
 
 
 class EmptyStringTerminateImmediatelyServer(protocol.Protocol):
-    PORT = BASE_PORT+2
+    PORT = 2
 
     def dataReceived(self, data):
         logger.info(_log(_ip(self.transport), self.PORT, data))
@@ -84,7 +85,7 @@ class EmptyStringTerminateImmediatelyFactory(protocol.Factory):
 
 class EmptyStringTerminateOnReceiveServer(protocol.Protocol):
 
-    PORT = BASE_PORT+3
+    PORT = 3
 
     def dataReceived(self, data):
         logger.info(_log(_ip(self.transport), self.PORT, data))
@@ -350,28 +351,31 @@ retries_resource = WSGIResource(reactor, reactor.getThreadPool(), retries_app)
 retries_site = Site(retries_resource)
 
 
-reactor.listenTCP(ListenForeverServer.PORT, ListenForeverFactory())
-reactor.listenTCP(EmptyStringTerminateImmediatelyServer.PORT,
-                  EmptyStringTerminateImmediatelyFactory())
-reactor.listenTCP(EmptyStringTerminateOnReceiveServer.PORT,
-                  EmptyStringTerminateOnReceiveFactory())
-reactor.listenTCP(MalformedStringTerminateImmediatelyServer.PORT,
-                  MalformedStringTerminateImmediatelyFactory())
-reactor.listenTCP(MalformedStringTerminateOnReceiveServer.PORT,
-                  MalformedStringTerminateOnReceiveFactory())
-reactor.listenTCP(FiveSecondByteResponseServer.PORT,
-                  FiveSecondByteResponseFactory())
-reactor.listenTCP(ThirtySecondByteResponseServer.PORT,
-                  ThirtySecondByteResponseFactory())
-reactor.listenTCP(sleep_app.PORT, sleep_site)
-reactor.listenTCP(status_app.PORT, status_site)
-reactor.listenTCP(SendDataPastContentLengthServer.PORT,
-                  SendDataPastContentLengthFactory())
-reactor.listenTCP(large_header_app.PORT, large_header_site)
-reactor.listenTCP(retries_app.PORT, retries_site)
-reactor.listenTCP(DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
+def listen(_reactor, base_port=BASE_PORT):
+    _reactor.listenTCP(base_port + ListenForeverServer.PORT, ListenForeverFactory())
+    _reactor.listenTCP(base_port + EmptyStringTerminateImmediatelyServer.PORT,
+                      EmptyStringTerminateImmediatelyFactory())
+    _reactor.listenTCP(base_port + EmptyStringTerminateOnReceiveServer.PORT,
+                      EmptyStringTerminateOnReceiveFactory())
+    _reactor.listenTCP(base_port + MalformedStringTerminateImmediatelyServer.PORT,
+                      MalformedStringTerminateImmediatelyFactory())
+    _reactor.listenTCP(base_port + MalformedStringTerminateOnReceiveServer.PORT,
+                      MalformedStringTerminateOnReceiveFactory())
+    _reactor.listenTCP(base_port + FiveSecondByteResponseServer.PORT,
+                      FiveSecondByteResponseFactory())
+    _reactor.listenTCP(base_port + ThirtySecondByteResponseServer.PORT,
+                      ThirtySecondByteResponseFactory())
+    _reactor.listenTCP(base_port + sleep_app.PORT, sleep_site)
+    _reactor.listenTCP(base_port + status_app.PORT, status_site)
+    _reactor.listenTCP(base_port + SendDataPastContentLengthServer.PORT,
+                      SendDataPastContentLengthFactory())
+    _reactor.listenTCP(base_port + large_header_app.PORT, large_header_site)
+    _reactor.listenTCP(base_port + retries_app.PORT, retries_site)
+    _reactor.listenTCP(base_port + DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
+
 
 if __name__ == "__main__":
     logging.basicConfig()
+    listen(reactor)
     logger.info("Listening...")
     reactor.run()
