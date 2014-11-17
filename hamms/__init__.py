@@ -29,8 +29,9 @@ class HammsServer(object):
         hs.stop()
     """
 
-    def start(self):
+    def start(self, port=BASE_PORT):
         self.t = Thread(target=reactor.run, args=(False,))
+        listen(reactor, port)
         self.t.daemon = True
         self.t.start()
 
@@ -100,7 +101,7 @@ class EmptyStringTerminateOnReceiveFactory(protocol.Factory):
 
 class MalformedStringTerminateImmediatelyServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 4
+    PORT = 4
 
     def dataReceived(self, data):
         logger.info(_log(_ip(self.transport), self.PORT, data))
@@ -117,7 +118,7 @@ class MalformedStringTerminateImmediatelyFactory(protocol.Factory):
 
 class MalformedStringTerminateOnReceiveServer(protocol.Protocol):
 
-    PORT = BASE_PORT+5
+    PORT = 5
 
     def dataReceived(self, data):
         logger.info(_log(_ip(self.transport), self.PORT, data))
@@ -136,7 +137,7 @@ empty_response = 'HTTP/1.1 204 No Content\r\n\r\n'
 # XXX combine these two servers.
 class FiveSecondByteResponseServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 6
+    PORT = 6
 
     def _send_byte(self, byte):
         self.transport.write(byte)
@@ -160,7 +161,7 @@ class FiveSecondByteResponseFactory(protocol.Factory):
 
 class ThirtySecondByteResponseServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 7
+    PORT = 7
 
     def _send_byte(self, byte):
         self.transport.write(byte)
@@ -184,7 +185,7 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
 
 class SendDataPastContentLengthServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 10
+    PORT = 10
 
     def dataReceived(self, data):
         logger.info(_log(_ip(self.transport), self.PORT, data, status=200))
@@ -205,7 +206,7 @@ def success_response(content_type, response):
 
 class DropRandomRequestsServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 13
+    PORT = 13
 
     def dataReceived(self, data):
         body = data.split('\r\n')
@@ -230,13 +231,13 @@ class DropRandomRequestsFactory(protocol.Factory):
 
 
 sleep_app = Flask(__name__)
-sleep_app.PORT = BASE_PORT + 8
+sleep_app.PORT = 8
 status_app = Flask(__name__)
-status_app.PORT = BASE_PORT + 9
+status_app.PORT = 9
 large_header_app = Flask(__name__)
-large_header_app.PORT = BASE_PORT + 11
+large_header_app.PORT = 11
 retries_app = Flask(__name__)
-retries_app.PORT = BASE_PORT + 12
+retries_app.PORT = 12
 
 @sleep_app.route("/")
 def sleep():
