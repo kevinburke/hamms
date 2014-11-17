@@ -281,6 +281,7 @@ def serve_error_based_on_counter():
         time_p = 'time' if retry_times == 1 else 'times'
         content = {
             'error':msg.format(retry_times=retry_times, time_p=time_p),
+            'counter': COUNTER,
             'status': 500,
         }
         return Response(response=json.dumps(content), status=500,
