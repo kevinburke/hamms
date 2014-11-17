@@ -12,7 +12,6 @@ from twisted.web.server import Site
 from twisted.web.wsgi import WSGIResource
 from werkzeug.routing import Rule
 
-logging.basicConfig()
 logger = logging.getLogger("hamms")
 logger.setLevel(logging.INFO)
 
@@ -373,5 +372,6 @@ reactor.listenTCP(retries_app.PORT, retries_site)
 reactor.listenTCP(DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
 
 if __name__ == "__main__":
+    logging.basicConfig()
     logger.info("Listening...")
     reactor.run()
