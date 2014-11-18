@@ -209,7 +209,13 @@ class DropRandomRequestsServer(protocol.Protocol):
 
     def dataReceived(self, data):
         body = data.split('\r\n')
-        method, url, http_vsn = body[0].split(' ')
+        try:
+            method, url, http_vsn = body[0].split(' ')
+        except Exception:
+            # we got weird data, just fail
+            logger.info(_log(_ip(self.transport), self.PORT, data))
+            self.transport.loseConnection()
+
         o = urlparse.urlparse(url)
         query = urlparse.parse_qs(o.query)
         if 'failrate' in query:
