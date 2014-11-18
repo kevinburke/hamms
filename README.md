@@ -17,7 +17,7 @@ Or clone this project:
 
 1. Start hamms by running it from the command line:
 
-        python hamms/__init__.py
+        python -m hamms
 
     Or use the HammsServer class to start and stop the server on command.
 
