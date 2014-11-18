@@ -371,7 +371,12 @@ reactor.listenTCP(large_header_app.PORT, large_header_site)
 reactor.listenTCP(retries_app.PORT, retries_site)
 reactor.listenTCP(DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
 
-if __name__ == "__main__":
+
+def main():
     logging.basicConfig()
     logger.info("Listening...")
     reactor.run()
+
+
+if __name__ == "__main__":
+    main()
