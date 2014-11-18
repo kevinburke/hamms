@@ -190,7 +190,8 @@ class SendDataPastContentLengthServer(protocol.Protocol):
 
     def connectionMade(self):
         self.transport.write('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n'
-                             'Content-Length: 3\r\n\r\n' + 'a'*1024*1024)
+                             'Content-Length: 3\r\nConnection: keep-alive'
+                             '\r\n\r\n' + 'a'*1024*1024)
         self.transport.loseConnection()
 
 class SendDataPastContentLengthFactory(protocol.Factory):
@@ -215,7 +216,7 @@ class DropRandomRequestsServer(protocol.Protocol):
             failrate = query['failrate'].pop()
         else:
             failrate = 0.05
-        if random.random() >= failrate:
+        if random.random() >= float(failrate):
             logger.info(_log(_ip(self.transport), self.PORT, data, status=200))
             self.transport.write(
                 success_response('application/json', '{"success": true}'))
