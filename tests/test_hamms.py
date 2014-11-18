@@ -74,7 +74,7 @@ def test_5508():
         requests.get(url, timeout=0.001)
 
     url = 'http://127.0.0.1:{port}?sleep=0.001'.format(port=BASE_PORT+8)
-    r = requests.get(url, timeout=0.01)
+    r = requests.get(url, timeout=0.02)
     assert_equal(r.status_code, 200)
 
 def test_5509():
