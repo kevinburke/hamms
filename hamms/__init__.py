@@ -23,25 +23,84 @@ class HammsServer(object):
     Usage::
 
         hs = HammsServer()
-        hs.start()
+        hs.start(beginning_port=5500)
         # When you are done working with hamms
         hs.stop()
+
+    :param int beginning_port: Hamms will start servers on all ports from
+        beginning_port to beginning_port + 14.
     """
 
-    def start(self):
-        self.t = Thread(target=reactor.run, args=(False,))
-        self.t.daemon = True
-        self.t.start()
+    def start(self, beginning_port=BASE_PORT):
+        self.beginning_port = beginning_port
+        self.retry_cache = {}
+
+        listen(reactor, base_port=self.beginning_port, retry_cache=self.retry_cache)
+
+        if not reactor.running:
+            self.t = Thread(target=reactor.run, args=(False,))
+            self.t.daemon = True
+            self.t.start()
 
     def stop(self):
         reactor.stop()
 
-def _ip(transport):
+def listen(_reactor, base_port=BASE_PORT, retry_cache=None):
+    retry_cache = retry_cache or {}
+    retries_app = create_retries_app(retry_cache)
+
+    sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
+    sleep_site = Site(sleep_resource)
+
+    status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
+    status_site = Site(status_resource)
+
+    large_header_resource = WSGIResource(reactor, reactor.getThreadPool(),
+                                         large_header_app)
+    large_header_site = Site(large_header_resource)
+
+    retries_resource = WSGIResource(reactor, reactor.getThreadPool(), retries_app)
+    retries_site = Site(retries_resource)
+
+    reactor.listenTCP(base_port + ListenForeverServer.PORT, ListenForeverFactory())
+    reactor.listenTCP(base_port + EmptyStringTerminateImmediatelyServer.PORT,
+                      EmptyStringTerminateImmediatelyFactory())
+    reactor.listenTCP(base_port + EmptyStringTerminateOnReceiveServer.PORT,
+                      EmptyStringTerminateOnReceiveFactory())
+    reactor.listenTCP(base_port + MalformedStringTerminateImmediatelyServer.PORT,
+                      MalformedStringTerminateImmediatelyFactory())
+    reactor.listenTCP(base_port + MalformedStringTerminateOnReceiveServer.PORT,
+                      MalformedStringTerminateOnReceiveFactory())
+    reactor.listenTCP(base_port + FiveSecondByteResponseServer.PORT,
+                      FiveSecondByteResponseFactory())
+    reactor.listenTCP(base_port + ThirtySecondByteResponseServer.PORT,
+                      ThirtySecondByteResponseFactory())
+    reactor.listenTCP(base_port + sleep_app.PORT, sleep_site)
+    reactor.listenTCP(base_port + status_app.PORT, status_site)
+    reactor.listenTCP(base_port + SendDataPastContentLengthServer.PORT,
+                      SendDataPastContentLengthFactory())
+    reactor.listenTCP(base_port + large_header_app.PORT, large_header_site)
+    reactor.listenTCP(base_port + retries_app.PORT, retries_site)
+    reactor.listenTCP(base_port + DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
+
+
+def get_remote_host(transport):
     try:
         peer = transport.getPeer()
         return peer.host
     except Exception:
         return "<ipaddr>"
+
+def get_port(transport):
+    try:
+        return transport.getHost().port
+    except Exception:
+        return "<port>"
+
+def _log_t(transport, data, status=None):
+    ipaddr = get_remote_host(transport)
+    port = get_port(transport)
+    return _log(ipaddr, port, data, status)
 
 def _log(ipaddr, port, data, status=None):
     try:
@@ -55,10 +114,10 @@ def _log(ipaddr, port, data, status=None):
 
 class ListenForeverServer(protocol.Protocol):
 
-    PORT = BASE_PORT+1
+    PORT = 1
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
+        logger.info(_log_t(self.transport, data))
 
 
 class ListenForeverFactory(protocol.Factory):
@@ -67,10 +126,10 @@ class ListenForeverFactory(protocol.Factory):
 
 
 class EmptyStringTerminateImmediatelyServer(protocol.Protocol):
-    PORT = BASE_PORT+2
+    PORT = 2
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
+        logger.info(_log_t(self.transport, data))
 
     def connectionMade(self):
         self.transport.write('')
@@ -84,10 +143,10 @@ class EmptyStringTerminateImmediatelyFactory(protocol.Factory):
 
 class EmptyStringTerminateOnReceiveServer(protocol.Protocol):
 
-    PORT = BASE_PORT+3
+    PORT = 3
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
+        logger.info(_log_t(self.transport, data))
         self.transport.write('')
         self.transport.loseConnection()
 
@@ -99,10 +158,10 @@ class EmptyStringTerminateOnReceiveFactory(protocol.Factory):
 
 class MalformedStringTerminateImmediatelyServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 4
+    PORT = 4
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
+        logger.info(_log_t(self.transport, data))
 
     def connectionMade(self):
         self.transport.write('foo bar')
@@ -116,10 +175,10 @@ class MalformedStringTerminateImmediatelyFactory(protocol.Factory):
 
 class MalformedStringTerminateOnReceiveServer(protocol.Protocol):
 
-    PORT = BASE_PORT+5
+    PORT = 5
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data))
+        logger.info(_log_t(self.transport, data))
         self.transport.write('foo bar')
         self.transport.loseConnection()
 
@@ -135,7 +194,7 @@ empty_response = 'HTTP/1.1 204 No Content\r\n\r\n'
 # XXX combine these two servers.
 class FiveSecondByteResponseServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 6
+    PORT = 6
 
     def _send_byte(self, byte):
         self.transport.write(byte)
@@ -147,9 +206,9 @@ class FiveSecondByteResponseServer(protocol.Protocol):
                 reactor.callLater(timer, self._send_byte, byte)
                 timer += 5
             reactor.callLater(timer, self.transport.loseConnection)
-            logger.info(_log(_ip(self.transport), self.PORT, data, status=204))
+            logger.info(_log_t(self.transport, data, status=204))
         except Exception:
-            logger.info(_log(_ip(self.transport), self.PORT, data))
+            logger.info(_log_t(self.transport, data))
 
 
 class FiveSecondByteResponseFactory(protocol.Factory):
@@ -159,7 +218,7 @@ class FiveSecondByteResponseFactory(protocol.Factory):
 
 class ThirtySecondByteResponseServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 7
+    PORT = 7
 
     def _send_byte(self, byte):
         self.transport.write(byte)
@@ -171,9 +230,9 @@ class ThirtySecondByteResponseServer(protocol.Protocol):
                 reactor.callLater(timer, self._send_byte, byte)
                 timer += 30
             reactor.callLater(timer, self.transport.loseConnection)
-            logger.info(_log(_ip(self.transport), self.PORT, data, status=204))
+            logger.info(_log_t(self.transport, data, status=204))
         except Exception:
-            logger.info(_log(_ip(self.transport), self.PORT, data))
+            logger.info(_log_t(self.transport, data))
 
 
 class ThirtySecondByteResponseFactory(protocol.Factory):
@@ -183,10 +242,10 @@ class ThirtySecondByteResponseFactory(protocol.Factory):
 
 class SendDataPastContentLengthServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 10
+    PORT = 10
 
     def dataReceived(self, data):
-        logger.info(_log(_ip(self.transport), self.PORT, data, status=200))
+        logger.info(_log_t(self.transport, data, status=200))
 
     def connectionMade(self):
         self.transport.write('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n'
@@ -205,7 +264,7 @@ def success_response(content_type, response):
 
 class DropRandomRequestsServer(protocol.Protocol):
 
-    PORT = BASE_PORT + 13
+    PORT = 13
 
     def dataReceived(self, data):
         body = data.split('\r\n')
@@ -213,7 +272,7 @@ class DropRandomRequestsServer(protocol.Protocol):
             method, url, http_vsn = body[0].split(' ')
         except Exception:
             # we got weird data, just fail
-            logger.info(_log(_ip(self.transport), self.PORT, data))
+            logger.info(_log_t(self.transport, data))
             self.transport.loseConnection()
 
         o = urlparse.urlparse(url)
@@ -223,11 +282,11 @@ class DropRandomRequestsServer(protocol.Protocol):
         else:
             failrate = 0.05
         if random.random() >= float(failrate):
-            logger.info(_log(_ip(self.transport), self.PORT, data, status=200))
+            logger.info(_log_t(self.transport, data, status=200))
             self.transport.write(
                 success_response('application/json', '{"success": true}'))
         else:
-            logger.info(_log(_ip(self.transport), self.PORT, data))
+            logger.info(_log_t(self.transport, data))
         self.transport.loseConnection()
 
 class DropRandomRequestsFactory(protocol.Factory):
@@ -236,13 +295,94 @@ class DropRandomRequestsFactory(protocol.Factory):
 
 
 sleep_app = Flask(__name__)
-sleep_app.PORT = BASE_PORT + 8
+sleep_app.PORT = 8
 status_app = Flask(__name__)
-status_app.PORT = BASE_PORT + 9
+status_app.PORT = 9
 large_header_app = Flask(__name__)
-large_header_app.PORT = BASE_PORT + 11
-retries_app = Flask(__name__)
-retries_app.PORT = BASE_PORT + 12
+large_header_app.PORT = 11
+
+def create_retries_app(cache):
+    retries_app = Flask(__name__)
+    retries_app.PORT = 12
+    retries_app.cache = cache
+
+    # we want the retries app to listen on all methods
+    retries_app.url_map.add(Rule('/', endpoint='index'))
+    @retries_app.endpoint("index")
+    def check_retries():
+        json_hdr = {'Content-Type': 'application/json'}
+        key = request.args.get('key', 'default')
+        tries = request.args.get('tries', 3)
+        try:
+            tries = int(tries)
+        except Exception:
+            return Response(status=400, headers=json_hdr, response=json.dumps({
+                'error': 'Please pass an integer number of tries',
+                'key': key,
+                'success': False,
+            }))
+
+        if key in retries_app.cache:
+            retries_app.cache[key] -= 1
+        else:
+            retries_app.cache[key] = int(tries) - 1
+
+        if retries_app.cache[key] <= 0:
+            data = {
+                'key': key,
+                'tries_remaining': retries_app.cache[key],
+                'success': True
+            }
+            return Response(response=json.dumps(data), status=200,
+                            headers=json_hdr)
+        else:
+            msg = 'The server had an error. Try again {retry_times} more {time_p}'
+            time_p = 'time' if retries_app.cache[key] == 1 else 'times'
+            content = {
+                'error': msg.format(retry_times=retries_app.cache[key], time_p=time_p),
+                'tries_remaining': retries_app.cache[key],
+                'key': key,
+                'success': False,
+            }
+            return Response(response=json.dumps(content), status=500,
+                            headers=json_hdr)
+
+    @retries_app.route("/counters", methods=['POST'])
+    def reset():
+        key = request.args.get('key', 'default')
+        tries = request.args.get('tries', 3)
+        try:
+            tries = int(tries)
+        except Exception:
+            return Response(status=400, headers=json_hdr, response=json.dumps({
+                'error': 'Please pass an integer number of tries',
+                'key': key,
+                'success': False,
+            }))
+
+        retries_app.cache[key] = tries
+
+        content = {
+            'key': key,
+            'tries_remaining': tries,
+            'success': True,
+        }
+        return Response(response=json.dumps(content), status=200,
+                        headers={'Content-Type': 'application/json'})
+
+    @retries_app.route("/counters", methods=['GET'])
+    def counter():
+        content = {'counters': retries_app.cache, 'success': True}
+        return Response(response=json.dumps(content), status=200,
+                        headers={'Content-Type': 'application/json'})
+
+    @retries_app.after_request
+    def retries_header(resp):
+        _log_flask(resp.status_code)
+        resp.headers['Server'] = 'hamms'
+        return resp
+
+    return retries_app
 
 @sleep_app.route("/")
 def sleep():
@@ -271,117 +411,42 @@ def large_header():
 
 COUNTER = 0
 
-# we want the retries app to listen on all methods
-retries_app.url_map.add(Rule('/', endpoint='index'))
-@retries_app.endpoint("index")
-def serve_error_based_on_counter():
-    global COUNTER
-    COUNTER += 1
-    if COUNTER % 3 == 0:
-        req_headers = get_dict('headers')
-        return Response(response=json.dumps(req_headers), status=200,
-                        headers={'Content-Type': 'application/json'})
-    else:
-        retry_times = 3 - COUNTER % 3
-        msg = 'The server had an error. Try again {retry_times} more {time_p}'
-        time_p = 'time' if retry_times == 1 else 'times'
-        content = {
-            'error':msg.format(retry_times=retry_times, time_p=time_p),
-            'counter': COUNTER,
-            'status': 500,
-        }
-        return Response(response=json.dumps(content), status=500,
-                        headers={'Content-Type': 'application/json'})
+def _get_port_from_url(url):
+    urlo = urlparse.urlparse(url)
+    try:
+        host, port = urlo.netloc.split(':')
+        return port
+    except Exception:
+        return "<port>"
 
-@retries_app.route("/counter", methods=['POST'])
-def reset():
-    global COUNTER
-    COUNTER = 0
-    content = {
-        'counter': COUNTER,
-        'status': 200
-    }
-    return Response(response=json.dumps(content), status=200,
-                    headers={'Content-Type': 'application/json'})
-
-@retries_app.route("/counter", methods=['GET'])
-def counter():
-    global COUNTER
-    content = {
-        'counter': COUNTER,
-        'status': 200
-    }
-    return Response(response=json.dumps(content), status=200,
-                    headers={'Content-Type': 'application/json'})
-
-def _log_flask(port, status):
-    logger.info(
-        _log(request.remote_addr, port, "{method} {url} HTTP/1.1".format(
-        method=request.method.upper(), url=request.full_path), status=status))
+def _log_flask(status):
+    port = _get_port_from_url(request.url)
+    url_line = "{method} {url} HTTP/1.0".format(
+        method=request.method.upper(), url=request.full_path)
+    logger.info(_log(request.remote_addr, port, url_line, status))
 
 @sleep_app.after_request
 def log_sleep(resp):
-    _log_flask(sleep_app.PORT, resp.status_code)
+    _log_flask(resp.status_code)
     resp.headers['Server'] = 'hamms'
     return resp
 
 @status_app.after_request
 def log_status(resp):
-    _log_flask(status_app.PORT, resp.status_code)
+    _log_flask(resp.status_code)
     resp.headers['Server'] = 'hamms'
     return resp
 
 @large_header_app.after_request
 def log_large_header(resp):
-    _log_flask(large_header_app.PORT, resp.status_code)
+    _log_flask(resp.status_code)
     resp.headers['Server'] = 'hamms'
     return resp
-
-@retries_app.after_request
-def retries_header(resp):
-    _log_flask(retries_app.PORT, resp.status_code)
-    resp.headers['Server'] = 'hamms'
-    return resp
-
-sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
-sleep_site = Site(sleep_resource)
-
-status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
-status_site = Site(status_resource)
-
-large_header_resource = WSGIResource(reactor, reactor.getThreadPool(),
-                                     large_header_app)
-large_header_site = Site(large_header_resource)
-
-retries_resource = WSGIResource(reactor, reactor.getThreadPool(), retries_app)
-retries_site = Site(retries_resource)
-
-
-reactor.listenTCP(ListenForeverServer.PORT, ListenForeverFactory())
-reactor.listenTCP(EmptyStringTerminateImmediatelyServer.PORT,
-                  EmptyStringTerminateImmediatelyFactory())
-reactor.listenTCP(EmptyStringTerminateOnReceiveServer.PORT,
-                  EmptyStringTerminateOnReceiveFactory())
-reactor.listenTCP(MalformedStringTerminateImmediatelyServer.PORT,
-                  MalformedStringTerminateImmediatelyFactory())
-reactor.listenTCP(MalformedStringTerminateOnReceiveServer.PORT,
-                  MalformedStringTerminateOnReceiveFactory())
-reactor.listenTCP(FiveSecondByteResponseServer.PORT,
-                  FiveSecondByteResponseFactory())
-reactor.listenTCP(ThirtySecondByteResponseServer.PORT,
-                  ThirtySecondByteResponseFactory())
-reactor.listenTCP(sleep_app.PORT, sleep_site)
-reactor.listenTCP(status_app.PORT, status_site)
-reactor.listenTCP(SendDataPastContentLengthServer.PORT,
-                  SendDataPastContentLengthFactory())
-reactor.listenTCP(large_header_app.PORT, large_header_site)
-reactor.listenTCP(retries_app.PORT, retries_site)
-reactor.listenTCP(DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
-
 
 def main():
     logging.basicConfig()
     logger.info("Listening...")
+    listen(reactor, BASE_PORT)
     reactor.run()
 
 

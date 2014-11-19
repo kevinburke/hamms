@@ -4,15 +4,17 @@ try:
 except ImportError:
     from http.client import BadStatusLine, LineTooLong
 
+from nose.tools import (assert_raises, assert_equal, assert_is_instance,
+                        assert_true,)
 import requests
-from nose.tools import assert_raises, assert_equal, assert_is_instance
 
-from hamms import HammsServer, BASE_PORT
+from hamms import HammsServer, BASE_PORT, reactor
 
 hs = HammsServer()
 
 def setup():
-    hs.start()
+    if not reactor.running:
+        hs.start()
 
 def test_5500():
     with assert_raises(requests.ConnectionError) as cm:
@@ -27,7 +29,7 @@ def test_5501():
 def test_5502():
     with assert_raises(requests.exceptions.ConnectionError) as cm:
         url = 'http://127.0.0.1:{port}'.format(port=BASE_PORT+2)
-        requests.get(url)
+        r = requests.get(url)
     assert_is_instance(cm.exception.message[1], BadStatusLine)
 
 def test_5503():
@@ -117,26 +119,60 @@ def test_5511():
     assert_equal(len(r.headers['Cookie']), 1024*63)
 
 def test_5512():
+    url = 'http://127.0.0.1:{port}?tries=foo'.format(port=BASE_PORT+12)
+    r = requests.get(url)
+    assert_equal(r.status_code, 400)
+    d = r.json()
+    assert_true('integer' in d['error'])
+
     url = 'http://127.0.0.1:{port}?key=hamms-test'.format(port=BASE_PORT+12)
     r = requests.get(url)
     assert_equal(r.status_code, 500)
     d = r.json()
-    assert_equal(d['counter'], 1)
+    assert_equal(d['tries_remaining'], 2)
+    assert_equal(d['key'], 'hamms-test')
 
     r = requests.get(url)
     assert_equal(r.status_code, 500)
     d = r.json()
-    assert_equal(d['counter'], 2)
+    assert_equal(d['tries_remaining'], 1)
 
     otherkey_url = 'http://127.0.0.1:{port}?key=other-key'.format(port=BASE_PORT+12)
     r = requests.get(otherkey_url)
     assert_equal(r.status_code, 500)
     d = r.json()
-    assert_equal(d['counter'], 1)
+    assert_equal(d['tries_remaining'], 2)
 
     url = 'http://127.0.0.1:{port}?key=hamms-test'.format(port=BASE_PORT+12)
     r = requests.get(url)
     assert_equal(r.status_code, 200)
+    d = r.json()
+    assert_equal(d['tries_remaining'], 0)
+
+    url = 'http://127.0.0.1:{port}/counters?key=hamms-test&tries=7'.format(port=BASE_PORT+12)
+    r = requests.post(url)
+    assert_equal(r.status_code, 200)
+    d = r.json()
+    assert_equal(d['key'], 'hamms-test')
+    assert_equal(d['tries_remaining'], 7)
+
+    url = 'http://127.0.0.1:{port}?key=hamms-test'.format(port=BASE_PORT+12)
+    r = requests.get(url)
+    assert_equal(r.status_code, 500)
+    d = r.json()
+    assert_equal(d['tries_remaining'], 6)
+
+    url = 'http://127.0.0.1:{port}'.format(port=BASE_PORT+12)
+    r = requests.get(url)
+    assert_equal(r.status_code, 500)
+    d = r.json()
+    assert_equal(d['key'], 'default')
+
+    url = 'http://127.0.0.1:{port}?key=foo&tries=1'.format(port=BASE_PORT+12)
+    r = requests.get(url)
+    assert_equal(r.status_code, 200)
+    d = r.json()
+    assert_equal(d['key'], 'foo')
 
 def test_5513():
     with assert_raises(requests.exceptions.ConnectionError) as cm:
@@ -148,4 +184,6 @@ def test_5513():
     r = requests.get(success_url)
 
 def teardown():
-    hs.stop()
+    # We can't stop the reactor in case other test files are going to run.
+    # hs.stop()
+    pass

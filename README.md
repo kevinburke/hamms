@@ -27,7 +27,7 @@ Or clone this project:
     class MyTest(object):
         def setUp(self):
             self.hs = HammsServer()
-            self.hs.start()
+            self.hs.start(beginning_port=5500)
 
         def tearDown(self):
             self.hs.stop()
@@ -36,8 +36,8 @@ Or clone this project:
 2. Make requests and test your client. See the reference below for a list of
    supported failure modes.
 
-By default, Hamms uses ports 5500-5600. In the future, this port range may be
-configurable.
+By default, Hamms uses ports 5500-5600. You can customize the port range by
+passing the `beginning_port` parameter to `HammsServer.start()`.
 
 ## Reference
 
@@ -82,14 +82,53 @@ for `float` number of seconds. If no value is provided, sleep for 5 seconds.
   header that is `n` bytes long. By default, return a 63KB header. 1KB larger
   will break many popular clients (curl, requests, for example)
 
-- **5512** - The server keeps a counter of incoming requests. Every third
-request (3, 6, 9, 12 etc) gets a 200 response; otherwise the server sends
-back a 500 server error. Retrieve the count by making a GET request to
-`localhost:5512/counter`. Reset the count by making a POST request to
-`localhost:5512/counter`.
+- **5512** - Use this port to test retry logic in your client - to ensure that
+it retries on failure.
 
-    Use this port to test retry logic in your client - to ensure that it
-    retries on failure.
+    The server maintains a counter for incoming requests. Each time a new
+    request is made, a 500 error is served and the counter is decremented. When
+    the counter reaches zero, a 200 response is served. This server accepts two
+    query arguments:
+
+    - **key** - Specify a `key` to create a new counter. Continue making
+      requests with `key=<key>` to decrement that particular counter. If no
+      key is provided, 'default' is used.
+    - **tries** - Specify the number of tries before success, as an integer. If
+    no number is provided, you will get a success on the 3rd try.
+
+    The server will let you know the key and how many tries are remaining until
+    you get a successful response. Example error response:
+
+    ```json
+    HTTP/1.1 500 INTERNAL SERVER ERROR
+    Content-Length: 116
+    Content-Type: application/json
+    Date: Wed, 19 Nov 2014 00:59:19 GMT
+    Server: TwistedWeb/14.0.2
+
+    {
+        "error": "The server had an error. Try again 1 more time",
+        "key": "foobar",
+        "success": false,
+        "tries_remaining": 1
+    }
+    ```
+
+    Example usage:
+
+    ```python
+    r = requests.get('http://localhost:5512?key=special-key')
+    assert_equal(r.status_code, 500)
+    r = requests.get('http://localhost:5512?key=special-key')
+    assert_equal(r.status_code, 500)
+    # Third time is the charm
+    r = requests.get('http://localhost:5512?key=special-key')
+    assert_equal(r.status_code, 200)
+
+    # Set tries=1 to serve a 200 right away.
+    r = requests.get('http://localhost:5512?key=my-key&tries=1')
+    assert_equal(r.status_code, 200)
+    ```
 
 - **5513** - Send a request to `localhost:5513?failrate=<float>`. The server
   will drop requests with a frequency of `failrate`.
