@@ -56,6 +56,8 @@ class HammsServer(object):
         reactor.stop()
 
 def listen(_reactor, base_port=BASE_PORT, retry_cache=None):
+    # in likelihood there is no benefit to passing in the reactor as only one of
+    # them can ever run at a time.
     retry_cache = retry_cache or {}
     retries_app = create_retries_app(retry_cache)
 
@@ -72,26 +74,26 @@ def listen(_reactor, base_port=BASE_PORT, retry_cache=None):
     retries_resource = WSGIResource(reactor, reactor.getThreadPool(), retries_app)
     retries_site = HammsSite(retries_resource)
 
-    reactor.listenTCP(base_port + ListenForeverServer.PORT, ListenForeverFactory())
-    reactor.listenTCP(base_port + EmptyStringTerminateImmediatelyServer.PORT,
+    _reactor.listenTCP(base_port + ListenForeverServer.PORT, ListenForeverFactory())
+    _reactor.listenTCP(base_port + EmptyStringTerminateImmediatelyServer.PORT,
                       EmptyStringTerminateImmediatelyFactory())
-    reactor.listenTCP(base_port + EmptyStringTerminateOnReceiveServer.PORT,
+    _reactor.listenTCP(base_port + EmptyStringTerminateOnReceiveServer.PORT,
                       EmptyStringTerminateOnReceiveFactory())
-    reactor.listenTCP(base_port + MalformedStringTerminateImmediatelyServer.PORT,
+    _reactor.listenTCP(base_port + MalformedStringTerminateImmediatelyServer.PORT,
                       MalformedStringTerminateImmediatelyFactory())
-    reactor.listenTCP(base_port + MalformedStringTerminateOnReceiveServer.PORT,
+    _reactor.listenTCP(base_port + MalformedStringTerminateOnReceiveServer.PORT,
                       MalformedStringTerminateOnReceiveFactory())
-    reactor.listenTCP(base_port + FiveSecondByteResponseServer.PORT,
+    _reactor.listenTCP(base_port + FiveSecondByteResponseServer.PORT,
                       FiveSecondByteResponseFactory())
-    reactor.listenTCP(base_port + ThirtySecondByteResponseServer.PORT,
+    _reactor.listenTCP(base_port + ThirtySecondByteResponseServer.PORT,
                       ThirtySecondByteResponseFactory())
-    reactor.listenTCP(base_port + sleep_app.PORT, sleep_site)
-    reactor.listenTCP(base_port + status_app.PORT, status_site)
-    reactor.listenTCP(base_port + SendDataPastContentLengthServer.PORT,
+    _reactor.listenTCP(base_port + sleep_app.PORT, sleep_site)
+    _reactor.listenTCP(base_port + status_app.PORT, status_site)
+    _reactor.listenTCP(base_port + SendDataPastContentLengthServer.PORT,
                       SendDataPastContentLengthFactory())
-    reactor.listenTCP(base_port + large_header_app.PORT, large_header_site)
-    reactor.listenTCP(base_port + retries_app.PORT, retries_site)
-    reactor.listenTCP(base_port + DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
+    _reactor.listenTCP(base_port + large_header_app.PORT, large_header_site)
+    _reactor.listenTCP(base_port + retries_app.PORT, retries_site)
+    _reactor.listenTCP(base_port + DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
 
 
 def get_remote_host(transport):
