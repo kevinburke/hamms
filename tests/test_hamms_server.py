@@ -27,4 +27,3 @@ def test_custom_port():
         # We can't stop the reactor in case other test files are going to run.
         # hs.stop()
         pass
-

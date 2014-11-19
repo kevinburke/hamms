@@ -9,6 +9,7 @@ from nose.tools import (assert_raises, assert_equal, assert_is_instance,
 import requests
 
 from hamms import HammsServer, BASE_PORT, reactor
+from hamms import __version__ as version
 
 hs = HammsServer()
 
@@ -182,6 +183,12 @@ def test_5513():
 
     success_url = 'http://127.0.0.1:{port}?failrate=0'.format(port=BASE_PORT+13)
     r = requests.get(success_url)
+
+def test_headers():
+    url = 'http://127.0.0.1:{port}'.format(port=BASE_PORT+9)
+    r = requests.get(url)
+    assert_equal(r.headers['Server'], 'Hamms/{version}'.format(version=version))
+
 
 def teardown():
     # We can't stop the reactor in case other test files are going to run.
