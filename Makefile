@@ -18,3 +18,6 @@ test:
 
 serve: 
 	. venv/bin/activate; python -m hamms
+
+publish:
+	python setup.py sdist upload -r pypi
