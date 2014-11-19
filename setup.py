@@ -1,9 +1,10 @@
 from setuptools import setup
+import hamms
 
 setup(
     name='hamms',
     packages=['hamms'],
-    version='0.6',
+    version=hamms.__version__,
     description='Malformed servers to test your HTTP client',
     author='Kevin Burke',
     author_email='kev@inburke.com',

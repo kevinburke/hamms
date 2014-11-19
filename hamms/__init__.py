@@ -12,10 +12,18 @@ from twisted.web.server import Site
 from twisted.web.wsgi import WSGIResource
 from werkzeug.routing import Rule
 
+
 logger = logging.getLogger("hamms")
 logger.setLevel(logging.INFO)
+__version__ = '1.0'
+SERVER_HEADER = 'Hamms/{version}'.format(version=__version__)
 
 BASE_PORT = 5500
+
+class HammsSite(Site):
+    def getResourceFor(self, request):
+        request.setHeader('Server', SERVER_HEADER)
+        return Site.getResourceFor(self, request)
 
 class HammsServer(object):
     """ Start the hamms server in a thread.
@@ -50,17 +58,17 @@ def listen(_reactor, base_port=BASE_PORT, retry_cache=None):
     retries_app = create_retries_app(retry_cache)
 
     sleep_resource = WSGIResource(reactor, reactor.getThreadPool(), sleep_app)
-    sleep_site = Site(sleep_resource)
+    sleep_site = HammsSite(sleep_resource)
 
     status_resource = WSGIResource(reactor, reactor.getThreadPool(), status_app)
-    status_site = Site(status_resource)
+    status_site = HammsSite(status_resource)
 
     large_header_resource = WSGIResource(reactor, reactor.getThreadPool(),
                                          large_header_app)
-    large_header_site = Site(large_header_resource)
+    large_header_site = HammsSite(large_header_resource)
 
     retries_resource = WSGIResource(reactor, reactor.getThreadPool(), retries_app)
-    retries_site = Site(retries_resource)
+    retries_site = HammsSite(retries_resource)
 
     reactor.listenTCP(base_port + ListenForeverServer.PORT, ListenForeverFactory())
     reactor.listenTCP(base_port + EmptyStringTerminateImmediatelyServer.PORT,
@@ -189,9 +197,9 @@ class MalformedStringTerminateOnReceiveFactory(protocol.Factory):
         return MalformedStringTerminateOnReceiveServer()
 
 
-empty_response = 'HTTP/1.1 204 No Content\r\n\r\n'
+empty_response = ('HTTP/1.1 204 No Content\r\n'
+                  'Server: {hdr}\r\n\r\n'.format(hdr=SERVER_HEADER))
 
-# XXX combine these two servers.
 class FiveSecondByteResponseServer(protocol.Protocol):
 
     PORT = 6
@@ -248,9 +256,13 @@ class SendDataPastContentLengthServer(protocol.Protocol):
         logger.info(_log_t(self.transport, data, status=200))
 
     def connectionMade(self):
-        self.transport.write('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n'
-                             'Content-Length: 3\r\nConnection: keep-alive'
-                             '\r\n\r\n' + 'a'*1024*1024)
+        self.transport.write('HTTP/1.1 200 OK\r\n'
+                             'Server: {server}\r\n'
+                             'Content-Type: text/plain\r\n'
+                             'Content-Length: 3\r\n'
+                             'Connection: keep-alive\r\n'
+                             '\r\n{body}'.format(server=SERVER_HEADER,
+                                                 body='a'*1024*1024))
         self.transport.loseConnection()
 
 class SendDataPastContentLengthFactory(protocol.Factory):
@@ -259,8 +271,10 @@ class SendDataPastContentLengthFactory(protocol.Factory):
 
 def success_response(content_type, response):
     return ('HTTP/1.1 200 OK\r\n'
+            'Server: {server}\r\n'
             'Content-Type: {ctype}\r\n\r\n'
-            '{response}'.format(ctype=content_type, response=response))
+            '{response}'.format(ctype=content_type, server=SERVER_HEADER,
+                                response=response))
 
 class DropRandomRequestsServer(protocol.Protocol):
 
@@ -428,25 +442,22 @@ def _log_flask(status):
 @sleep_app.after_request
 def log_sleep(resp):
     _log_flask(resp.status_code)
-    resp.headers['Server'] = 'hamms'
     return resp
 
 @status_app.after_request
 def log_status(resp):
     _log_flask(resp.status_code)
-    resp.headers['Server'] = 'hamms'
     return resp
 
 @large_header_app.after_request
 def log_large_header(resp):
     _log_flask(resp.status_code)
-    resp.headers['Server'] = 'hamms'
     return resp
 
-def main():
+def main(port=BASE_PORT):
     logging.basicConfig()
     logger.info("Listening...")
-    listen(reactor, BASE_PORT)
+    listen(reactor, port)
     reactor.run()
 
 
