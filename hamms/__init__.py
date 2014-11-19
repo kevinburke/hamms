@@ -1,6 +1,8 @@
 import json
 import logging
+from email import message_from_string
 import random
+from StringIO import StringIO
 from threading import Thread
 import time
 import urlparse
@@ -15,7 +17,7 @@ from werkzeug.routing import Rule
 
 logger = logging.getLogger("hamms")
 logger.setLevel(logging.INFO)
-__version__ = '1.0'
+__version__ = '1.1'
 SERVER_HEADER = 'Hamms/{version}'.format(version=__version__)
 
 BASE_PORT = 5500
@@ -105,17 +107,25 @@ def get_port(transport):
     except Exception:
         return "<port>"
 
+def get_user_agent(data):
+    try:
+        rline, raw_headers = data.split('\r\n', 1)
+        headers = message_from_string(raw_headers)
+        return headers.get('user-agent', "")
+    except Exception:
+        return ""
+
 def _log_t(transport, data, status=None):
     ipaddr = get_remote_host(transport)
     port = get_port(transport)
-    return _log(ipaddr, port, data, status)
+    ua = get_user_agent(data)
+    return _log(ipaddr, port, data, status=status, ua=ua)
 
-def _log(ipaddr, port, data, status=None):
+def _log(ipaddr, port, data, status=None, ua=""):
     try:
-        # XXX find user agent
         topline = data.split('\r\n')[0]
-        return "{ipaddr} {port} \"{topline}\" {status}".format(
-            ipaddr=ipaddr, port=port, topline=topline, status=status or "-")
+        return "{ipaddr} {port} \"{topline}\" {status} \"{ua}\"".format(
+            ipaddr=ipaddr, port=port, topline=topline, ua=ua, status=status or "-")
     except Exception:
         logger.exception("caught exception while formatting log")
         return "<data received>"
@@ -437,7 +447,8 @@ def _log_flask(status):
     port = _get_port_from_url(request.url)
     url_line = "{method} {url} HTTP/1.0".format(
         method=request.method.upper(), url=request.full_path)
-    logger.info(_log(request.remote_addr, port, url_line, status))
+    ua = request.headers.get('user-agent', '')
+    logger.info(_log(request.remote_addr, port, url_line, status, ua=ua))
 
 @sleep_app.after_request
 def log_sleep(resp):
