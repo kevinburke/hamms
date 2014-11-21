@@ -326,6 +326,8 @@ status_app = Flask(__name__)
 status_app.PORT = 9
 large_header_app = Flask(__name__)
 large_header_app.PORT = 11
+unparseable_app = Flask(__name__)
+unparseable_app.PORT = 14
 
 def create_retries_app(cache):
     retries_app = Flask(__name__)
@@ -434,8 +436,9 @@ def large_header():
     return Response(response=json.dumps(req_headers), status=200,
                     headers=resp_headers)
 
-
-COUNTER = 0
+@unparseable_app.route("/")
+def unparseable():
+    pass
 
 def _get_port_from_url(url):
     urlo = urlparse.urlparse(url)
