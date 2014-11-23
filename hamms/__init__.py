@@ -17,7 +17,8 @@ from werkzeug.routing import Rule
 
 logger = logging.getLogger("hamms")
 logger.setLevel(logging.INFO)
-__version__ = '1.1'
+# XXX: also update version in setup.py
+__version__ = '1.2'
 SERVER_HEADER = 'Hamms/{version}'.format(version=__version__)
 
 BASE_PORT = 5500

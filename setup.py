@@ -1,10 +1,12 @@
 from setuptools import setup
-import hamms
+
+# XXX: also update version in setup.py
+__version__ = '1.2'
 
 setup(
     name='hamms',
     packages=['hamms'],
-    version=hamms.__version__,
+    version=__version__,
     description='Malformed servers to test your HTTP client',
     author='Kevin Burke',
     author_email='kev@inburke.com',
