@@ -20,7 +20,7 @@ from .morse import morsedict
 logger = logging.getLogger("hamms")
 logger.setLevel(logging.INFO)
 # XXX: also update version in setup.py
-__version__ = '1.2'
+__version__ = '1.3'
 SERVER_HEADER = 'Hamms/{version}'.format(version=__version__)
 
 BASE_PORT = 5500

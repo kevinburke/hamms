@@ -1,7 +1,7 @@
 from setuptools import setup
 
-# XXX: also update version in setup.py
-__version__ = '1.2'
+# XXX: also update version in hamms/__init__.py
+__version__ = '1.3'
 
 setup(
     name='hamms',
