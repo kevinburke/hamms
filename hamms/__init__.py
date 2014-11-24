@@ -13,7 +13,9 @@ from twisted.internet import protocol, reactor
 from twisted.web.server import Site
 from twisted.web.wsgi import WSGIResource
 from werkzeug.routing import Rule
+from werkzeug.http import parse_accept_header
 
+from .morse import morsedict
 
 logger = logging.getLogger("hamms")
 logger.setLevel(logging.INFO)
@@ -75,6 +77,14 @@ def listen(_reactor, base_port=BASE_PORT, retry_cache=None):
     retries_resource = WSGIResource(reactor, reactor.getThreadPool(), retries_app)
     retries_site = HammsSite(retries_resource)
 
+    unparseable_resource = WSGIResource(reactor, reactor.getThreadPool(),
+                                        unparseable_app)
+    unparseable_site = HammsSite(unparseable_resource)
+
+    toolong_content_resource = WSGIResource(reactor, reactor.getThreadPool(),
+                                        toolong_content_app)
+    toolong_content_site = HammsSite(toolong_content_resource)
+
     _reactor.listenTCP(base_port + ListenForeverServer.PORT, ListenForeverFactory())
     _reactor.listenTCP(base_port + EmptyStringTerminateImmediatelyServer.PORT,
                       EmptyStringTerminateImmediatelyFactory())
@@ -94,7 +104,12 @@ def listen(_reactor, base_port=BASE_PORT, retry_cache=None):
                       SendDataPastContentLengthFactory())
     _reactor.listenTCP(base_port + large_header_app.PORT, large_header_site)
     _reactor.listenTCP(base_port + retries_app.PORT, retries_site)
-    _reactor.listenTCP(base_port + DropRandomRequestsServer.PORT, DropRandomRequestsFactory())
+    _reactor.listenTCP(base_port + DropRandomRequestsServer.PORT,
+                       DropRandomRequestsFactory())
+    _reactor.listenTCP(base_port + unparseable_app.PORT, unparseable_site)
+    _reactor.listenTCP(base_port + IncompleteResponseServer.PORT,
+                       IncompleteResponseFactory())
+    _reactor.listenTCP(base_port + toolong_content_app.PORT, toolong_content_site)
 
 
 def get_remote_host(transport):
@@ -110,18 +125,18 @@ def get_port(transport):
     except Exception:
         return "<port>"
 
-def get_user_agent(data):
+def get_header(header_name, data):
     try:
         rline, raw_headers = data.split('\r\n', 1)
         headers = message_from_string(raw_headers)
-        return headers.get('user-agent', "")
+        return headers.get(header_name, "")
     except Exception:
         return ""
 
 def _log_t(transport, data, status=None):
     ipaddr = get_remote_host(transport)
     port = get_port(transport)
-    ua = get_user_agent(data)
+    ua = get_header('user-agent', data)
     return _log(ipaddr, port, data, status=status, ua=ua)
 
 def _log(ipaddr, port, data, status=None, ua=""):
@@ -321,6 +336,44 @@ class DropRandomRequestsFactory(protocol.Factory):
         return DropRandomRequestsServer()
 
 
+
+def write_incomplete_response(transport, content_type, body):
+    transport.write('Content-Type: {ctype}\r\n'.format(ctype=content_type))
+    transport.write('Content-Length: {length}\r\n'.format(
+        length=len(body)+2000))
+    transport.write('\r\n{body}'.format(body=body))
+    transport.loseConnection()
+
+INCOMPLETE_JSON = '{"message": "the json body is incomplete.", "key": {"nested_message": "blah blah blah'
+INCOMPLETE_XML = '<?xml version="1.0" ?><response><status type="http">200 foo'
+INCOMPLETE_PLAIN = 'incomplete document respo'
+INCOMPLETE_HTML = '<!doctype html><html><head><title>incomplete'
+
+class IncompleteResponseServer(protocol.Protocol):
+    PORT = 16
+    def dataReceived(self, data):
+        accept_header_value = get_header('Accept', data)
+        accept_cls = parse_accept_header(accept_header_value)
+        self.transport.write('HTTP/1.1 200 OK\r\n')
+        if 'text/html' == accept_cls.best:
+            write_incomplete_response(self.transport, 'text/html',
+                                      INCOMPLETE_HTML)
+        elif 'text/plain' == accept_cls.best:
+            write_incomplete_response(self.transport, 'text/plain',
+                                      INCOMPLETE_PLAIN)
+        elif 'text/xml' == accept_cls.best:
+            write_incomplete_response(self.transport, 'text/xml',
+                                      INCOMPLETE_XML)
+        else:
+            write_incomplete_response(self.transport, 'application/json',
+                                      INCOMPLETE_JSON)
+
+
+class IncompleteResponseFactory(protocol.Factory):
+    def buildProtocol(self, addr):
+        return IncompleteResponseServer()
+
+
 sleep_app = Flask(__name__)
 sleep_app.PORT = 8
 status_app = Flask(__name__)
@@ -329,6 +382,8 @@ large_header_app = Flask(__name__)
 large_header_app.PORT = 11
 unparseable_app = Flask(__name__)
 unparseable_app.PORT = 14
+toolong_content_app = Flask(__name__)
+toolong_content_app.PORT = 15
 
 def create_retries_app(cache):
     retries_app = Flask(__name__)
@@ -378,8 +433,8 @@ def create_retries_app(cache):
 
     @retries_app.route("/counters", methods=['POST'])
     def reset():
-        key = request.args.get('key', 'default')
-        tries = request.args.get('tries', 3)
+        key = request.values.get('key', 'default')
+        tries = request.values.get('tries', 3)
         try:
             tries = int(tries)
         except Exception:
@@ -439,7 +494,68 @@ def large_header():
 
 @unparseable_app.route("/")
 def unparseable():
-    pass
+
+    def _morse():
+        hdr = {'Content-Type': 'text/morse'}
+        message = " STOP ".join([
+            "DEAREST ANN",
+            "TIMES ARE HARD",
+            "MY TREADMILL DESK DOESNT RECLINE ALL THE WAY",
+            "THE KITCHEN HASNT HAD SOYLENT FOR TWO WHOLE DAYS",
+            "HOW IS ANYONE SUPPOSED TO PROGRAM IN THESE CONDITIONS",
+            "PLEASE SEND HELP",
+        ]) + " STOP"
+        morse_message = StringIO()
+        for i, letter in enumerate(message):
+            morse_message.write(morsedict[letter])
+        return Response(response=morse_message.getvalue(), headers=hdr)
+
+    if 'text/morse' not in request.accept_mimetypes:
+        return _morse()
+
+    elif not request.accept_mimetypes.accept_json:
+        hdr = {'Content-Type': 'application/json'}
+        resp = {
+            'status': 200,
+            'message': 'This is a JSON response. You did not ask for JSON data.',
+        }
+        return Response(response=json.dumps(resp), headers=hdr)
+
+    elif not request.accept_mimetypes.accept_html:
+        hdr = {'Content-Type': 'text/html'}
+        return Response(response="<!doctype html><html><head><title>Your API is Broken</title></head><body>This should be JSON.</body></html>", headers=hdr)
+
+    elif 'text/csv' not in request.accept_mimetypes:
+        hdr = {'Content-Type': 'text/csv'}
+        return Response(response="message,status\nThis is a CSV response that your code almost certainly can't parse", headers=hdr)
+
+    else:
+        # */* or similar, return morse.
+        return _morse()
+
+@toolong_content_app.route("/")
+def toolong():
+    r = Response()
+    r.automatically_set_content_length = False
+    r.headers['Content-Length'] = 2300
+    if (request.accept_mimetypes.best == 'application/json' or
+        request.accept_mimetypes.best == '*/*'):
+        r.headers['Content-Type'] = 'application/json'
+        r.set_data(INCOMPLETE_JSON)
+    elif request.accept_mimetypes.best == 'text/html':
+        r.headers['Content-Type'] = 'text/html'
+        r.set_data(INCOMPLETE_HTML)
+    elif request.accept_mimetypes.best == 'text/plain':
+        r.headers['Content-Type'] = 'text/plain'
+        r.set_data(INCOMPLETE_PLAIN)
+    elif (request.accept_mimetypes.best == 'text/xml' or
+          request.accept_mimetypes.best == 'application/xml'):
+        r.headers['Content-Type'] = 'text/xml'
+        r.set_data(INCOMPLETE_XML)
+    else:
+        r.headers['Content-Type'] = 'application/json'
+        r.set_data(INCOMPLETE_JSON)
+    return r
 
 def _get_port_from_url(url):
     urlo = urlparse.urlparse(url)

@@ -130,8 +130,46 @@ it retries on failure.
     assert_equal(r.status_code, 200)
     ```
 
+    You can see the status of all available counters by making a GET request
+    to `http://localhost:5512/counters`, or reset a counter by making a POST
+    request to `http://localhost:5512/counters` with the `key` you want to
+    reset.
+
 - **5513** - Send a request to `localhost:5513?failrate=<float>`. The server
   will drop requests with a frequency of `failrate`.
+
+- **5514** - The server will try as hard as it can to return a content type
+that is not parseable by the `Accept` header provided by the request. Specify
+a `Accept: application/json` header in your request and the server will return
+data with the `text/morse` content type. The server will try these
+content-types in turn:
+
+- `text/morse`
+- `application/json`
+- `text/html`
+- `text/csv`
+
+If your Accept header indicates it can accept all of these content-types, the
+server will return `text/morse`.
+
+- **5515** - The server will return a response with a content-type that matches
+the request, but it will be incomplete. The server will advertise an incorrect,
+too long Content-Length, and the response body will not be complete. The
+practical effect is that the server will hang halfway through the response
+download. The server can return partial responses with the following
+content-types:
+
+- `application/json`
+- `text/html`
+- `text/plain`
+- `text/xml`
+
+If your server indicates an Accept header value of `*/*`, or the server cannot
+find a matching content-type, the server will returnn an incomplete json
+response.
+
+- **5516** - Same semantics as port 5515, but the server will close the
+connection partway through, instead of hanging indefinitely.
 
 #### Not implemented yet
 

@@ -157,6 +157,13 @@ def test_5512():
     assert_equal(d['key'], 'hamms-test')
     assert_equal(d['tries_remaining'], 7)
 
+    url = 'http://127.0.0.1:{port}/counters'.format(port=BASE_PORT+12)
+    r = requests.post(url, data={'key': 'hamms-test', 'tries': 7})
+    assert_equal(r.status_code, 200)
+    d = r.json()
+    assert_equal(d['key'], 'hamms-test')
+    assert_equal(d['tries_remaining'], 7)
+
     url = 'http://127.0.0.1:{port}?key=hamms-test'.format(port=BASE_PORT+12)
     r = requests.get(url)
     assert_equal(r.status_code, 500)
@@ -183,6 +190,46 @@ def test_5513():
 
     success_url = 'http://127.0.0.1:{port}?failrate=0'.format(port=BASE_PORT+13)
     r = requests.get(success_url)
+
+def test_5514():
+    url = 'http://127.0.0.1:{port}'.format(port=BASE_PORT+14)
+    r = requests.get(url, headers={'Accept': 'text/morse'})
+    assert_equal(r.headers['content-type'], 'application/json')
+
+    r = requests.get(url, headers={'Accept': 'application/json,q=0.3;text/morse,q=0.5'})
+    assert_equal(r.headers['content-type'], 'text/html')
+
+    r = requests.get(url, headers={'Accept': 'application/json,q=0.3;'})
+    assert_equal(r.headers['content-type'], 'text/morse')
+
+    r = requests.get(url, headers={'Accept': '*/*,q=0.3;'})
+    assert_equal(r.headers['content-type'], 'text/morse')
+
+    r = requests.get(url, headers={'Accept': 'text/*,q=0.3;'})
+    assert_equal(r.headers['content-type'], 'application/json')
+
+    r = requests.get(url, headers={'Accept': 'application/*,q=0.3;text/morse,q=0.5'})
+    assert_equal(r.headers['content-type'], 'text/csv')
+
+def test_5515():
+    url = 'http://127.0.0.1:{port}'.format(port=BASE_PORT+15)
+    r = requests.get(url, stream=True, timeout=0.005)
+    assert_equal(r.status_code, 200)
+    assert_equal(r.headers['Content-Type'], 'application/json')
+    with assert_raises(requests.exceptions.ConnectionError) as cm:
+        # attempting to stream the response will raise the timeout, which
+        # (oddly) requests re-raises as a ConnectionError
+        r.content
+
+def test_5516():
+    url = 'http://127.0.0.1:{port}'.format(port=BASE_PORT+16)
+    r = requests.get(url)
+    assert_equal(r.headers['Content-Type'], 'application/json')
+    assert_true(int(r.headers['Content-Length']) > len(r.content))
+
+    r = requests.get(url, headers={'Accept': 'text/plain'})
+    assert_equal(r.headers['Content-Type'], 'text/plain')
+    assert_true(int(r.headers['Content-Length']) > len(r.content))
 
 def test_headers():
     url = 'http://127.0.0.1:{port}'.format(port=BASE_PORT+9)
