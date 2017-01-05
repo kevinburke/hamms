@@ -1,6 +1,6 @@
+from email import message_from_string
 import json
 import logging
-from email import message_from_string
 import random
 from StringIO import StringIO
 from threading import Thread

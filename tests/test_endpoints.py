@@ -196,19 +196,19 @@ def test_5514():
     r = requests.get(url, headers={'Accept': 'text/morse'})
     assert_equal(r.headers['content-type'], 'application/json')
 
-    r = requests.get(url, headers={'Accept': 'application/json,q=0.3;text/morse,q=0.5'})
+    r = requests.get(url, headers={'Accept': 'application/json;q=0.3,text/morse;q=0.5'})
     assert_equal(r.headers['content-type'], 'text/html')
 
-    r = requests.get(url, headers={'Accept': 'application/json,q=0.3;'})
+    r = requests.get(url, headers={'Accept': 'application/json;q=0.3;'})
     assert_equal(r.headers['content-type'], 'text/morse')
 
-    r = requests.get(url, headers={'Accept': '*/*,q=0.3;'})
+    r = requests.get(url, headers={'Accept': '*/*;q=0.3,'})
     assert_equal(r.headers['content-type'], 'text/morse')
 
-    r = requests.get(url, headers={'Accept': 'text/*,q=0.3;'})
+    r = requests.get(url, headers={'Accept': 'text/*;q=0.3,'})
     assert_equal(r.headers['content-type'], 'application/json')
 
-    r = requests.get(url, headers={'Accept': 'application/*,q=0.3;text/morse,q=0.5'})
+    r = requests.get(url, headers={'Accept': 'application/*;q=0.3,text/morse;q=0.5'})
     assert_equal(r.headers['content-type'], 'text/csv')
 
 def test_5515():
