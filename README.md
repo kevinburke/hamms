@@ -185,3 +185,9 @@ connection partway through, instead of hanging indefinitely.
 - TLS v1.0 and higher only
 - TLS v1.2 and higher only
 - Server closes connection
+
+## Donating
+
+Donations free up time to make improvements to the library, and respond to
+bug reports. You can send donations via Paypal's "Send Money" feature to
+kev@inburke.com. Donations are not tax deductible in the USA.
